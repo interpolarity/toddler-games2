@@ -1,5 +1,5 @@
 import type { FrameContext, Scene } from '../types';
-import { Excavator } from '../game/excavator';
+import { Excavator, BOOM_LEN, STICK_LEN } from '../game/excavator';
 import { Terrain } from '../game/terrain';
 import { Background } from '../game/background';
 import { Truck } from '../game/truck';
@@ -33,16 +33,30 @@ export class ExcavatorScene implements Scene {
 
   private layout({ width, height, orientation }: FrameContext) {
     const portrait = orientation === 'portrait';
-    const horizonY = portrait ? height * 0.42 : height * 0.55;
+    // Lower horizon in portrait to give the bigger half of the screen to the
+    // playable ground (where digging happens); landscape keeps a larger sky.
+    const horizonY = portrait ? height * 0.32 : height * 0.55;
     const groundBaseY = horizonY + 6;
     this.sceneWidth = width;
     this.groundBaseY = groundBaseY;
 
     const baseScale = Math.min(width, height);
-    this.excScale = baseScale * (portrait ? 0.42 : 0.36);
-    this.truckScale = baseScale * (portrait ? 0.34 : 0.30);
-    this.excX = portrait ? width * 0.24 : width * 0.21;
-    this.truckParkX = portrait ? width * 0.74 : width * 0.66;
+    // Portrait shrinks both vehicles so they don't fill the narrow screen.
+    this.excScale = baseScale * (portrait ? 0.34 : 0.36);
+    this.truckScale = baseScale * (portrait ? 0.24 : 0.30);
+    this.excX = width * 0.18;
+
+    // Park truck at the edge of the bucket's reach (with a small overlap into
+    // the dump zone so the kid has slack). Computed instead of hard-coded so
+    // the layout works at any aspect ratio.
+    const armOffset = this.excScale * 0.10;
+    const reach = this.excScale * (BOOM_LEN + STICK_LEN);
+    const dumpZoneFromCenter = this.truckScale * 0.55;
+    const desiredOverlap = this.truckScale * 0.18;
+    this.truckParkX = this.excX + armOffset + reach + dumpZoneFromCenter - desiredOverlap;
+    // Don't push the truck off the right edge if reach is huge.
+    const maxTruckX = width - this.truckScale * 0.5;
+    if (this.truckParkX > maxTruckX) this.truckParkX = maxTruckX;
 
     if (!this.initialized) {
       this.background = new Background(width, height, horizonY);

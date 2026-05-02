@@ -5,8 +5,8 @@
 
 export type Material = 'dirt' | 'clay' | 'rock';
 
-const BOOM_LEN = 0.55;
-const STICK_LEN = 0.42;
+export const BOOM_LEN = 0.62;
+export const STICK_LEN = 0.48;
 const BUCKET_LEN = 0.20;
 
 export class Excavator {
