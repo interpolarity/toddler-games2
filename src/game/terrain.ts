@@ -149,6 +149,31 @@ export class Terrain {
   }
 
   update(dt: number) {
+    // Avalanche — material flows from higher ground to lower when adjacent
+    // cells exceed the angle of repose. Gives the kid infinite dig material
+    // (walls slide into the hole, hole widens) and caps pile heights.
+    // Using two passes per frame for faster slope smoothing without big steps.
+    const maxSlope = 5; // px between adjacent cells (CELL=3 -> ~59° angle of repose)
+    const slidePerSec = 30;
+    const slideCap = slidePerSec * dt;
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < this.cells - 1; i++) {
+        const diff = this.surface[i] - this.surface[i + 1];
+        const abs = diff < 0 ? -diff : diff;
+        if (abs > maxSlope) {
+          let slide = (abs - maxSlope) * 0.5;
+          if (slide > slideCap) slide = slideCap;
+          if (diff > 0) {
+            this.surface[i] -= slide;
+            this.surface[i + 1] += slide;
+          } else {
+            this.surface[i] += slide;
+            this.surface[i + 1] -= slide;
+          }
+        }
+      }
+    }
+
     const g = 600;
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
@@ -161,18 +186,11 @@ export class Terrain {
       if (p.settle) {
         const cell = Math.floor(p.x / CELL);
         if (cell >= 0 && cell < this.cells && p.y >= this.surface[cell]) {
-          // Pile on top: raise surface (smaller y) by a small amount
+          // Deposit on top of the surface; avalanche above will spread it.
           this.surface[cell] -= 0.6;
-          // Cap pile height
-          const maxPile = this.original[cell] - 70;
+          // Cap how tall a pile can grow before deposits stop registering.
+          const maxPile = this.original[cell] - 80;
           if (this.surface[cell] < maxPile) this.surface[cell] = maxPile;
-          // Smooth into neighbors so piles aren't single-column spikes
-          if (cell > 0 && this.surface[cell - 1] - this.surface[cell] > 4) {
-            this.surface[cell - 1] -= 0.3;
-          }
-          if (cell < this.cells - 1 && this.surface[cell + 1] - this.surface[cell] > 4) {
-            this.surface[cell + 1] -= 0.3;
-          }
           this.particles.splice(i, 1);
           continue;
         }
