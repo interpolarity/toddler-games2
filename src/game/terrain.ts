@@ -188,71 +188,107 @@ export class Terrain {
   }
 
   draw(ctx: CanvasRenderingContext2D) {
-    // Draw stratified ground per cell. Each cell is a vertical column.
+    // Strategy: every cell draws its FULL substrate column from origY down to the
+    // bottom of the canvas, regardless of whether it's been dug. Then a hole-shadow
+    // overlay darkens the air space in dug cells, and pile material covers the
+    // surface in piled cells. This way there are no gaps in coverage and the dug
+    // area shows the layered cross-section "behind" the hole.
     for (let i = 0; i < this.cells; i++) {
       const x = i * CELL;
       const surfY = this.surface[i];
       const origY = this.original[i];
+      const dug = surfY > origY + 0.5;
+      const piled = surfY < origY - 0.5;
 
-      // Pile (surface above original) — draw as topsoil-colored mound
-      if (surfY < origY) {
-        ctx.fillStyle = '#9c6a1a';
-        ctx.fillRect(x, surfY, CELL, origY - surfY);
-        ctx.fillStyle = '#7a4f10';
-        ctx.fillRect(x, surfY, CELL, 2);
-      }
+      // 1. Substrate column (intact appearance)
+      // Grass + topsoil cap at origY
+      ctx.fillStyle = '#5a8a36';
+      ctx.fillRect(x, origY - 4, CELL, 4);
+      ctx.fillStyle = '#3a6620';
+      ctx.fillRect(x, origY, CELL, 2);
+      ctx.fillStyle = '#5a3010';
+      ctx.fillRect(x, origY + 2, CELL, 4);
 
-      // Topsoil + grass strip (only intact where original surface remains)
-      if (surfY <= origY) {
-        // Grass blade strip
-        ctx.fillStyle = '#4a7d2e';
-        ctx.fillRect(x, origY - 3, CELL, 3);
-        ctx.fillStyle = '#3a6620';
-        ctx.fillRect(x, origY, CELL, 2);
-        ctx.fillStyle = '#5a3010';
-        ctx.fillRect(x, origY + 2, CELL, 4);
-      } else {
-        // Carved away — show exposed dirt edge
-        ctx.fillStyle = '#7a4f10';
-        ctx.fillRect(x, surfY, CELL, 2);
-      }
-
-      // Layered substrate from current surface (or original + 6 if pile)
-      const startY = Math.max(surfY, origY) + 6;
-      // Dirt layer (down to original + 35)
+      // Dirt
+      const dirtTop = origY + 6;
       const dirtBot = Math.min(this.height, origY + 35);
-      if (dirtBot > startY) {
+      if (dirtBot > dirtTop) {
         ctx.fillStyle = '#8a5e16';
-        ctx.fillRect(x, startY, CELL, dirtBot - startY);
-        // small streaks
-        if ((i % 11) === 0) {
+        ctx.fillRect(x, dirtTop, CELL, dirtBot - dirtTop);
+        if ((i % 11) === 3) {
           ctx.fillStyle = '#6e4810';
-          ctx.fillRect(x, startY + 4, CELL, 2);
+          ctx.fillRect(x, dirtTop + 4, CELL, 2);
+        }
+        if ((i % 19) === 7) {
+          ctx.fillStyle = '#a87420';
+          ctx.fillRect(x, dirtTop + 14, 2, 2);
         }
       }
       // Clay
-      const clayTop = Math.max(dirtBot, surfY);
       const clayBot = Math.min(this.height, origY + 110);
-      if (clayBot > clayTop) {
+      if (clayBot > dirtBot) {
         ctx.fillStyle = '#a86a3a';
-        ctx.fillRect(x, clayTop, CELL, clayBot - clayTop);
-        if ((i % 13) === 3) {
+        ctx.fillRect(x, dirtBot, CELL, clayBot - dirtBot);
+        if ((i % 13) === 4) {
           ctx.fillStyle = '#8a4f20';
-          ctx.fillRect(x, clayTop + 18, CELL, 3);
+          ctx.fillRect(x, dirtBot + 18, CELL, 3);
+        }
+        if ((i % 17) === 9) {
+          ctx.fillStyle = '#c08850';
+          ctx.fillRect(x, dirtBot + 38, 2, 2);
         }
       }
       // Rock
-      const rockTop = Math.max(clayBot, surfY);
-      if (this.height > rockTop) {
+      if (this.height > clayBot) {
         ctx.fillStyle = '#5a5550';
-        ctx.fillRect(x, rockTop, CELL, this.height - rockTop);
-        if ((i % 9) === 4) {
-          ctx.fillStyle = '#777';
-          ctx.fillRect(x, rockTop + 12 + (i % 5) * 8, 2, 2);
+        ctx.fillRect(x, clayBot, CELL, this.height - clayBot);
+        if ((i % 9) === 5) {
+          ctx.fillStyle = '#888';
+          ctx.fillRect(x, clayBot + 14 + (i % 5) * 9, 2, 2);
         }
-        if ((i % 17) === 8) {
+        if ((i % 23) === 11) {
           ctx.fillStyle = '#3a3530';
-          ctx.fillRect(x, rockTop + 30, CELL, 3);
+          ctx.fillRect(x, clayBot + 32, CELL, 3);
+        }
+      }
+
+      // 2. Hole shadow — darken the dug-out region so it reads as a depression.
+      // Draws on top of the substrate so the layers are visible "through" the hole.
+      if (dug) {
+        const grad = ctx.createLinearGradient(0, origY, 0, surfY);
+        grad.addColorStop(0, 'rgba(20,12,6,0.45)');
+        grad.addColorStop(0.5, 'rgba(15,9,5,0.75)');
+        grad.addColorStop(1, 'rgba(10,6,3,0.92)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, origY, CELL, surfY - origY);
+        // Bucket-carved bottom edge
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillRect(x, surfY, CELL, 2);
+        // Subtle horizontal striations to suggest tool marks
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        for (let y = origY + 6; y < surfY - 1; y += 8) {
+          ctx.fillRect(x, y, CELL, 1);
+        }
+        // Lip highlight at hole rim
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(x, origY, CELL, 2);
+        ctx.fillStyle = '#3a2010';
+        ctx.fillRect(x, origY + 2, CELL, 2);
+      }
+
+      // 3. Pile — covers grass when surface is built up above original.
+      if (piled) {
+        const ph = origY - surfY;
+        const pgrad = ctx.createLinearGradient(0, surfY, 0, origY);
+        pgrad.addColorStop(0, '#a87420');
+        pgrad.addColorStop(1, '#7a4f10');
+        ctx.fillStyle = pgrad;
+        ctx.fillRect(x, surfY, CELL, ph);
+        ctx.fillStyle = '#bb8030';
+        ctx.fillRect(x, surfY, CELL, 1);
+        if ((i % 5) === 2) {
+          ctx.fillStyle = '#7a4f10';
+          ctx.fillRect(x + 1, surfY + 4, 1, 1);
         }
       }
     }

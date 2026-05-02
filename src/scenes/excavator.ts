@@ -8,7 +8,6 @@ export class ExcavatorScene implements Scene {
   private terrain!: Terrain;
   private background!: Background;
   private initialized = false;
-  private trips = 0;
   private dumpInProgress = false;
 
   onEnter(ctx: FrameContext) { this.layout(ctx); }
@@ -83,7 +82,6 @@ export class ExcavatorScene implements Scene {
       const volume = exc.fill * 1500;
       terr.dump(dumpSpawnX, dumpSpawnY, volume, exc.fillMaterial);
       this.dumpInProgress = true;
-      this.trips++;
       if ('vibrate' in navigator) navigator.vibrate?.(20);
     }
     if (!exc.dumping) this.dumpInProgress = false;
@@ -94,29 +92,15 @@ export class ExcavatorScene implements Scene {
   render({ ctx, width, height }: FrameContext) {
     if (!this.initialized) return;
 
+    // Backdrop fill — guarantees no leftover pixels from prior frames in any
+    // region that downstream draws might miss (e.g. strip between horizon and
+    // top of terrain). Sky color so it blends if anything peeks through.
+    ctx.fillStyle = '#73b6e3';
+    ctx.fillRect(0, 0, width, height);
+
     this.background.draw(ctx);
     this.terrain.draw(ctx);
     this.excavator.draw(ctx);
-
-    // Trip counter HUD
-    if (this.trips > 0) {
-      const padX = 18, padY = 14;
-      const label = `🚜 ${this.trips}`;
-      ctx.font = `bold ${Math.round(Math.min(width, height) * 0.045)}px system-ui, sans-serif`;
-      const metrics = ctx.measureText(label);
-      const w = metrics.width + 24;
-      const h = Math.min(width, height) * 0.07;
-      ctx.fillStyle = 'rgba(255,255,255,0.85)';
-      this.roundRect(ctx, width - w - padX, padY, w, h, h * 0.4);
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.fillStyle = '#3a2818';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, width - w / 2 - padX, padY + h / 2);
-    }
 
     // Hint (bottom)
     ctx.fillStyle = 'rgba(58,40,24,0.55)';
@@ -124,19 +108,5 @@ export class ExcavatorScene implements Scene {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
     ctx.fillText('drag the bucket — dig down, lift high to dump', width / 2, height - 14);
-  }
-
-  private roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
   }
 }

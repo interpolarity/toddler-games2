@@ -549,114 +549,149 @@ export class Excavator {
     ctx.translate(px, py);
     ctx.rotate(angle);
 
+    // Local frame: pin at origin (0,0). +X = forward (toward teeth). +Y = down (into bucket).
+    // Body is a near-symmetric C-shape opening upward with pin slightly toward the back-top.
     const w = s * BUCKET_LEN;
-    const h = s * 0.16;
+    const h = s * 0.20;
 
-    // Outer bucket shape — curved scoop
-    const grad = ctx.createLinearGradient(0, 0, 0, h * 1.2);
-    grad.addColorStop(0, '#7a7a7a');
-    grad.addColorStop(0.5, '#5a5a5a');
-    grad.addColorStop(1, '#3a3a3a');
-    ctx.fillStyle = grad;
+    // Pin bracket — small ear above the body that anchors to the stick pin.
+    ctx.fillStyle = '#3a3a3a';
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(0, -h * 0.15);
-    ctx.lineTo(0, h * 0.30);
-    ctx.quadraticCurveTo(w * 0.05, h * 1.05, w * 0.45, h * 1.10);
-    ctx.lineTo(w * 0.85, h * 0.95);
-    ctx.lineTo(w * 0.98, h * 0.55);
-    ctx.lineTo(w * 0.92, h * 0.20);
-    ctx.lineTo(w * 0.55, -h * 0.10);
+    ctx.moveTo(0, 0);
+    ctx.lineTo(-w * 0.06, h * 0.07);
+    ctx.lineTo(w * 0.08, h * 0.07);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Body — a real excavator scoop, opening on top, curved bottom, teeth on the front lip.
+    // Both back wall and front wall reach the bucket floor so the shape reads symmetric.
+    const bodyGrad = ctx.createLinearGradient(0, h * 0.05, 0, h * 1.05);
+    bodyGrad.addColorStop(0, '#8a8a8a');
+    bodyGrad.addColorStop(0.5, '#5a5a5a');
+    bodyGrad.addColorStop(1, '#2e2e2e');
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    // Top-back of opening
+    ctx.moveTo(-w * 0.30, h * 0.07);
+    // Top edge of opening, going forward
+    ctx.lineTo(w * 0.82, h * 0.07);
+    // Front-upper curve outward
+    ctx.quadraticCurveTo(w * 1.00, h * 0.18, w * 0.98, h * 0.55);
+    // Front wall down to cutting edge
+    ctx.lineTo(w * 0.92, h * 0.92);
+    // Front-bottom corner
+    ctx.quadraticCurveTo(w * 0.78, h * 1.04, w * 0.50, h * 1.04);
+    // Bottom (slight curve, deeper in middle)
+    ctx.quadraticCurveTo(w * 0.20, h * 1.06, -w * 0.05, h * 1.02);
+    // Back-bottom corner
+    ctx.quadraticCurveTo(-w * 0.26, h * 0.96, -w * 0.32, h * 0.78);
+    // Back wall up
+    ctx.lineTo(-w * 0.30, h * 0.07);
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = '#1a1a1a';
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Inside cavity (darker, shows depth)
-    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    // Inside cavity — darker inset showing the bucket is a hollow scoop.
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
     ctx.beginPath();
-    ctx.moveTo(w * 0.08, h * 0.22);
-    ctx.lineTo(w * 0.10, h * 0.85);
-    ctx.quadraticCurveTo(w * 0.40, h * 0.95, w * 0.78, h * 0.82);
-    ctx.lineTo(w * 0.85, h * 0.30);
+    ctx.moveTo(-w * 0.22, h * 0.14);
+    ctx.lineTo(w * 0.74, h * 0.14);
+    ctx.quadraticCurveTo(w * 0.86, h * 0.22, w * 0.84, h * 0.55);
+    ctx.lineTo(w * 0.78, h * 0.85);
+    ctx.quadraticCurveTo(w * 0.55, h * 0.95, w * 0.20, h * 0.95);
+    ctx.quadraticCurveTo(-w * 0.05, h * 0.92, -w * 0.20, h * 0.85);
+    ctx.quadraticCurveTo(-w * 0.26, h * 0.62, -w * 0.22, h * 0.14);
     ctx.closePath();
     ctx.fill();
 
-    // Fill content
+    // Material fill — visible load when carrying.
     if (this.fill > 0 && !this.dumping) {
-      const fillH = h * 0.65 * Math.min(1, this.fill);
-      const top = h * 0.85 - fillH;
-      const matColor = this.fillMaterial === 'rock'
-        ? ['#777', '#999']
+      const fillH = h * 0.7 * Math.min(1, this.fill);
+      const top = h * 0.88 - fillH;
+      const colors = this.fillMaterial === 'rock'
+        ? ['#6a6560', '#8a8580']
         : this.fillMaterial === 'clay'
-        ? ['#a86a3a', '#c08850']
-        : ['#7a4f10', '#9c6a1a'];
-      ctx.fillStyle = matColor[0];
+        ? ['#8a4f20', '#a86a3a']
+        : ['#6e4810', '#9c6a1a'];
+      ctx.fillStyle = colors[0];
       ctx.beginPath();
-      ctx.moveTo(w * 0.10, top + 2);
-      // Bumpy top edge
+      ctx.moveTo(-w * 0.20, top + 4);
       const segs = 8;
       for (let i = 1; i <= segs; i++) {
-        const fx = w * 0.10 + (w * 0.70) * (i / segs);
-        const bump = Math.sin(i * 1.7 + this.idle * 0.5) * 1.5;
+        const fx = -w * 0.20 + (w * 0.94) * (i / segs);
+        const bump = Math.sin(i * 1.7 + this.idle * 0.6) * 1.5;
         ctx.lineTo(fx, top + bump);
       }
-      ctx.lineTo(w * 0.78, h * 0.85);
-      ctx.lineTo(w * 0.10, h * 0.85);
+      ctx.lineTo(w * 0.74, h * 0.88);
+      ctx.quadraticCurveTo(w * 0.40, h * 0.95, -w * 0.16, h * 0.88);
       ctx.closePath();
       ctx.fill();
-      // Lighter highlight on top
-      ctx.fillStyle = matColor[1];
+      // Lighter dust band on top of the load
+      ctx.fillStyle = colors[1];
       ctx.beginPath();
-      ctx.moveTo(w * 0.10, top + 2);
+      ctx.moveTo(-w * 0.20, top + 4);
       for (let i = 1; i <= segs; i++) {
-        const fx = w * 0.10 + (w * 0.70) * (i / segs);
-        const bump = Math.sin(i * 1.7 + this.idle * 0.5) * 1.5;
+        const fx = -w * 0.20 + (w * 0.94) * (i / segs);
+        const bump = Math.sin(i * 1.7 + this.idle * 0.6) * 1.5;
         ctx.lineTo(fx, top + bump);
       }
-      ctx.lineTo(w * 0.78, top + 4);
-      ctx.lineTo(w * 0.10, top + 4);
+      ctx.lineTo(w * 0.74, top + 6);
+      ctx.lineTo(-w * 0.20, top + 6);
       ctx.closePath();
       ctx.fill();
     }
 
-    // Front cutting edge (lighter band along the lip)
+    // Cutting-edge wear band (lighter strip along the front lip)
     ctx.strokeStyle = '#9a9a9a';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(w * 0.08, h * 1.05);
-    ctx.quadraticCurveTo(w * 0.45, h * 1.08, w * 0.85, h * 0.95);
+    ctx.moveTo(-w * 0.05, h * 1.02);
+    ctx.quadraticCurveTo(w * 0.40, h * 1.07, w * 0.85, h * 0.96);
     ctx.stroke();
 
-    // Teeth — tapered, multiple, slightly angled
-    ctx.fillStyle = '#cfcfcf';
+    // Teeth — 5 along the cutting edge, base width modest, length ≈ h*0.18.
+    ctx.fillStyle = '#d4d4d4';
     ctx.strokeStyle = '#1a1a1a';
     ctx.lineWidth = 1.2;
     const teethN = 5;
-    const teethStart = w * 0.10;
-    const teethEnd = w * 0.85;
+    const teethStart = -w * 0.02;
+    const teethEnd = w * 0.78;
     for (let i = 0; i < teethN; i++) {
       const t = i / (teethN - 1);
       const tx = teethStart + (teethEnd - teethStart) * t;
-      const ty = h * 1.04 + Math.sin(t * Math.PI) * h * 0.04;
+      // Base sits on the cutting edge — slight arc following the lip.
+      const ty = h * 1.04 + (1 - 4 * Math.pow(t - 0.5, 2)) * h * 0.02 - Math.abs(t - 0.5) * h * 0.03;
+      const baseHalf = w * 0.028;
+      const tipLen = h * 0.18;
       ctx.beginPath();
-      ctx.moveTo(tx - w * 0.025, ty);
-      ctx.lineTo(tx, ty + h * 0.20);
-      ctx.lineTo(tx + w * 0.025, ty);
+      ctx.moveTo(tx - baseHalf, ty);
+      ctx.lineTo(tx, ty + tipLen);
+      ctx.lineTo(tx + baseHalf, ty);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
     }
 
-    // Side rib detail
-    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    // Side rib detail (panels on outer face)
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(w * 0.30, h * 0.05);
-    ctx.lineTo(w * 0.30, h * 0.75);
-    ctx.moveTo(w * 0.55, h * 0.0);
-    ctx.lineTo(w * 0.60, h * 0.85);
+    ctx.moveTo(w * 0.10, h * 0.10);
+    ctx.lineTo(w * 0.13, h * 0.85);
+    ctx.moveTo(w * 0.45, h * 0.07);
+    ctx.lineTo(w * 0.50, h * 0.95);
     ctx.stroke();
+
+    // Mounting boss highlight where the curl link attaches (back-top)
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath();
+    ctx.arc(-w * 0.18, h * 0.11, w * 0.018, 0, Math.PI * 2);
+    ctx.fill();
 
     ctx.restore();
   }
