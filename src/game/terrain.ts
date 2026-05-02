@@ -21,6 +21,11 @@ export class Terrain {
   surface: Float32Array; // current top y of each cell (smaller y = higher ground)
   original: Float32Array; // original undisturbed surface
   particles: Particle[] = [];
+  // Last point where the terrain was disturbed (carved or piled-on). Avalanche
+  // is localized around this point and decays after a short window so untouched
+  // ground stays untouched and the bucket's reach to fresh dirt is preserved.
+  private lastDisturbanceX = -1;
+  private lastDisturbanceAt = -Infinity;
 
   constructor(width: number, height: number, baseY: number) {
     this.width = width;
@@ -100,12 +105,16 @@ export class Terrain {
     }
 
     if (totalVolume <= 0) return null;
+    this.lastDisturbanceX = cx;
+    this.lastDisturbanceAt = performance.now();
     const avgDepth = depthSum / Math.max(1, depthCount);
     return { volume: totalVolume, material: this.materialAtDepth(Math.max(0, avgDepth)) };
   }
 
   // Dump material out the bucket — particles fall and accumulate as a pile.
   dump(cx: number, cy: number, totalVolume: number, material: Material) {
+    this.lastDisturbanceX = cx;
+    this.lastDisturbanceAt = performance.now();
     const count = Math.min(80, Math.max(20, Math.floor(totalVolume * 0.04)));
     const colors = this.materialColors(material);
     for (let i = 0; i < count; i++) {
@@ -150,25 +159,35 @@ export class Terrain {
 
   update(dt: number) {
     // Avalanche — material flows from higher ground to lower when adjacent
-    // cells exceed the angle of repose. Gives the kid infinite dig material
-    // (walls slide into the hole, hole widens) and caps pile heights.
-    // Using two passes per frame for faster slope smoothing without big steps.
-    const maxSlope = 5; // px between adjacent cells (CELL=3 -> ~59° angle of repose)
-    const slidePerSec = 30;
-    const slideCap = slidePerSec * dt;
-    for (let pass = 0; pass < 2; pass++) {
-      for (let i = 0; i < this.cells - 1; i++) {
-        const diff = this.surface[i] - this.surface[i + 1];
-        const abs = diff < 0 ? -diff : diff;
-        if (abs > maxSlope) {
-          let slide = (abs - maxSlope) * 0.5;
-          if (slide > slideCap) slide = slideCap;
-          if (diff > 0) {
-            this.surface[i] -= slide;
-            this.surface[i + 1] += slide;
-          } else {
-            this.surface[i] += slide;
-            this.surface[i + 1] -= slide;
+    // cells exceed the angle of repose. LOCALIZED: only acts within a radius
+    // of the most recent disturbance (carve or dump) and only for a short
+    // window after. This way walls slide while the kid is actively digging
+    // (so the hole keeps yielding fresh material), but untouched ground stays
+    // exactly where it is — preventing the global erosion bug where the
+    // ground sank below the bucket's reach over time.
+    const now = performance.now();
+    const ageMs = now - this.lastDisturbanceAt;
+    if (this.lastDisturbanceX >= 0 && ageMs < 600) {
+      const radius = 90;
+      const startCell = Math.max(0, Math.floor((this.lastDisturbanceX - radius) / CELL));
+      const endCell = Math.min(this.cells - 2, Math.floor((this.lastDisturbanceX + radius) / CELL));
+      const maxSlope = 5;
+      const slidePerSec = 30;
+      const slideCap = slidePerSec * dt;
+      for (let pass = 0; pass < 2; pass++) {
+        for (let i = startCell; i <= endCell; i++) {
+          const diff = this.surface[i] - this.surface[i + 1];
+          const abs = diff < 0 ? -diff : diff;
+          if (abs > maxSlope) {
+            let slide = (abs - maxSlope) * 0.5;
+            if (slide > slideCap) slide = slideCap;
+            if (diff > 0) {
+              this.surface[i] -= slide;
+              this.surface[i + 1] += slide;
+            } else {
+              this.surface[i] += slide;
+              this.surface[i + 1] -= slide;
+            }
           }
         }
       }
@@ -188,9 +207,11 @@ export class Terrain {
         if (cell >= 0 && cell < this.cells && p.y >= this.surface[cell]) {
           // Deposit on top of the surface; avalanche above will spread it.
           this.surface[cell] -= 0.6;
-          // Cap how tall a pile can grow before deposits stop registering.
           const maxPile = this.original[cell] - 80;
           if (this.surface[cell] < maxPile) this.surface[cell] = maxPile;
+          // Refresh avalanche window so falling particles keep piles spreading.
+          this.lastDisturbanceX = p.x;
+          this.lastDisturbanceAt = now;
           this.particles.splice(i, 1);
           continue;
         }
