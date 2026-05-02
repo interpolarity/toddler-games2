@@ -21,10 +21,11 @@ export class ExcavatorScene implements Scene {
   // Layout cache
   private excX = 0;
   private excScale = 0;
-  private truckParkX = 0;
   private truckScale = 0;
   private groundBaseY = 0;
   private sceneWidth = 0;
+  private worldWidth = 0;
+  private cameraX = 0;
   private newTruckTimer = 0;
   private trucksLoaded = 0;
 
@@ -38,52 +39,60 @@ export class ExcavatorScene implements Scene {
 
   private layout({ width, height, orientation }: FrameContext) {
     const portrait = orientation === 'portrait';
-    // Lower horizon in portrait to give the bigger half of the screen to the
-    // playable ground (where digging happens); landscape keeps a larger sky.
     const horizonY = portrait ? height * 0.32 : height * 0.55;
     const groundBaseY = horizonY + 6;
     this.sceneWidth = width;
     this.groundBaseY = groundBaseY;
+    // World is wider than the screen; camera scrolls to follow the digger.
+    // Min 1500px so even narrow phones get plenty of horizontal room.
+    this.worldWidth = Math.max(width * 2, 1500);
 
     const baseScale = Math.min(width, height);
-    // Portrait shrinks both vehicles so they don't fill the narrow screen.
     this.excScale = baseScale * (portrait ? 0.34 : 0.36);
     this.truckScale = baseScale * (portrait ? 0.24 : 0.30);
-    this.excX = width * 0.18;
-
-    // Park truck at the edge of the bucket's reach (with a small overlap into
-    // the dump zone so the kid has slack). Computed instead of hard-coded so
-    // the layout works at any aspect ratio.
-    const armOffset = this.excScale * 0.10;
-    const reach = this.excScale * (BOOM_LEN + STICK_LEN);
-    const dumpZoneFromCenter = this.truckScale * 0.55;
-    const desiredOverlap = this.truckScale * 0.18;
-    this.truckParkX = this.excX + armOffset + reach + dumpZoneFromCenter - desiredOverlap;
-    // Don't push the truck off the right edge if reach is huge.
-    const maxTruckX = width - this.truckScale * 0.5;
-    if (this.truckParkX > maxTruckX) this.truckParkX = maxTruckX;
+    // Excavator starts in the left third of the world.
+    this.excX = Math.max(this.excScale * 0.6, width * 0.18);
 
     if (!this.initialized) {
-      this.background = new Background(width, height, horizonY);
-      this.terrain = new Terrain(width, height, groundBaseY);
+      this.background = new Background(this.worldWidth, height, horizonY);
+      this.terrain = new Terrain(this.worldWidth, height, groundBaseY);
     } else {
-      this.background.resize(width, height, horizonY);
-      this.terrain.resize(width, height, groundBaseY);
+      this.background.resize(this.worldWidth, height, horizonY);
+      this.terrain.resize(this.worldWidth, height, groundBaseY);
     }
 
     this.excavator = new Excavator(this.excX, groundBaseY, this.excScale);
+    // Place camera so the excavator starts ~30% from the left of screen.
+    this.cameraX = this.clampCamera(this.excX - width * 0.30);
     this.spawnTruck(true);
     this.initialized = true;
   }
 
+  private clampCamera(x: number): number {
+    if (x < 0) return 0;
+    const max = this.worldWidth - this.sceneWidth;
+    if (x > max) return max;
+    return x;
+  }
+
   private spawnTruck(initial: boolean) {
+    // Park near the digger's CURRENT world position so a fresh truck always
+    // arrives within reach, no matter how far the kid has driven.
+    const armOffset = this.excScale * 0.10;
+    const reach = this.excScale * (BOOM_LEN + STICK_LEN);
+    const dumpZoneFromCenter = this.truckScale * 0.55;
+    const desiredOverlap = this.truckScale * 0.18;
+    let parkX = this.excavator.x + armOffset + reach + dumpZoneFromCenter - desiredOverlap;
+    const maxParkX = this.worldWidth - this.truckScale * 0.5;
+    if (parkX > maxParkX) parkX = maxParkX;
+    // Spawn off camera to the right (if reachable) or just past parkX.
+    const cameraRight = this.cameraX + this.sceneWidth;
+    const startX = Math.max(parkX + this.truckScale * 0.5, cameraRight + this.truckScale * 0.5);
+
     const loads = 1 + Math.floor(Math.random() * 4); // 1..4
-    this.truck = new Truck(this.truckScale, this.groundBaseY, this.truckParkX, this.sceneWidth, loads);
-    if (!initial) {
-      // Honk on arrival once audio is unlocked
-      if (this.audioUnlocked) {
-        setTimeout(() => this.audio.playHonk(), 300);
-      }
+    this.truck = new Truck(this.truckScale, this.groundBaseY, parkX, startX, loads);
+    if (!initial && this.audioUnlocked) {
+      setTimeout(() => this.audio.playHonk(), 300);
     }
   }
 
@@ -118,9 +127,11 @@ export class ExcavatorScene implements Scene {
         if (p.down) {
           activePointer = p;
           this.dragPointerId = p.id;
-          if (exc.isOverBody(p.x, p.y)) {
+          // Convert pointer to world space for hit-test.
+          const worldX = p.x + this.cameraX;
+          if (exc.isOverBody(worldX, p.y)) {
             this.dragMode = 'drive';
-            this.driveOffsetX = exc.x - p.x;
+            this.driveOffsetX = exc.x - worldX;
           } else {
             this.dragMode = 'bucket';
           }
@@ -132,10 +143,11 @@ export class ExcavatorScene implements Scene {
     exc.driving = this.dragMode === 'drive';
 
     if (this.dragMode === 'drive' && activePointer) {
-      // Drive: target follows pointer with locked initial offset.
-      let target = activePointer.x + this.driveOffsetX;
+      // Drive: target follows pointer (in world space) with locked offset.
+      const worldX = activePointer.x + this.cameraX;
+      let target = worldX + this.driveOffsetX;
       const minX = exc.scale * 0.5;
-      let maxX = this.sceneWidth - exc.scale * 0.5;
+      let maxX = this.worldWidth - exc.scale * 0.5;
       if (this.truck && this.truck.state !== 'leaving') {
         const blockX = this.truck.x - this.truckScale * 0.5 - exc.scale * 0.55;
         if (blockX < maxX) maxX = blockX;
@@ -148,7 +160,8 @@ export class ExcavatorScene implements Scene {
       const travelY = exc.y - exc.scale * 0.55;
       exc.setBucketTarget(travelX, travelY);
     } else if (this.dragMode === 'bucket' && activePointer) {
-      exc.setBucketTarget(activePointer.x, activePointer.y);
+      const worldX = activePointer.x + this.cameraX;
+      exc.setBucketTarget(worldX, activePointer.y);
     } else {
       const restX = exc.x + exc.scale * 0.55;
       const restY = exc.y - exc.scale * 0.22;
@@ -160,6 +173,12 @@ export class ExcavatorScene implements Scene {
     }
 
     exc.update(dt, exc.y);
+
+    // Camera follows the digger smoothly — keeps it about 30% from the
+    // left so there's room to see the dig area and truck on the right.
+    const targetCamX = this.clampCamera(exc.x - this.sceneWidth * 0.30);
+    const camLerp = 1 - Math.pow(0.0001, dt);
+    this.cameraX += (targetCamX - this.cameraX) * camLerp;
 
     // Bucket carves terrain — only on the open ground (not under the truck).
     const work = exc.getBucketWorkPoint();
@@ -209,7 +228,8 @@ export class ExcavatorScene implements Scene {
     // Truck cycle
     if (truck) {
       truck.update(dt);
-      if (truck.isGone(this.sceneWidth)) {
+      const cameraRight = this.cameraX + this.sceneWidth;
+      if (truck.isGone(cameraRight)) {
         this.trucksLoaded++;
         this.truck = null;
         this.newTruckTimer = 1.6; // wait before next truck arrives
@@ -230,12 +250,17 @@ export class ExcavatorScene implements Scene {
     ctx.fillStyle = '#73b6e3';
     ctx.fillRect(0, 0, width, height);
 
+    // World draws are scrolled by the camera. Background, terrain, truck,
+    // and excavator are all positioned in world space.
+    ctx.save();
+    ctx.translate(-this.cameraX, 0);
     this.background.draw(ctx);
     this.terrain.draw(ctx);
     this.truck?.draw(ctx);
     this.excavator.draw(ctx);
+    ctx.restore();
 
-    // Trucks-loaded star count (top-right) — concrete, visible reward.
+    // HUD is in screen space (no camera offset).
     this.drawStarCount(ctx, width, height);
 
     // First-touch hint

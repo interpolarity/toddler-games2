@@ -34,13 +34,13 @@ export class Truck {
   particles: Confetti[] = [];
   bedShake = 0; // visual jolt when receiving a load
 
-  constructor(scale: number, groundY: number, parkX: number, sceneWidth: number, loads: number) {
+  constructor(scale: number, groundY: number, parkX: number, startX: number, loads: number) {
     this.scale = scale;
     this.groundY = groundY;
     this.parkX = parkX;
     this.loadsWanted = loads;
-    // Spawn off-screen to the right; reverses in (cab leading, bed presented to excavator on its left).
-    this.x = sceneWidth + scale * 0.9;
+    // Truck reverses in from `startX` (caller's responsibility to put it off-camera).
+    this.x = startX;
   }
 
   // Returns true if the bucket position is over the receiving zone above the truck bed.
@@ -137,8 +137,8 @@ export class Truck {
     }
   }
 
-  isGone(sceneWidth: number): boolean {
-    return this.state === 'leaving' && this.x > sceneWidth + this.scale * 1.5;
+  isGone(rightLimit: number): boolean {
+    return this.state === 'leaving' && this.x > rightLimit + this.scale * 1.5;
   }
 
   draw(ctx: CanvasRenderingContext2D) {
