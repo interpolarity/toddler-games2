@@ -28,6 +28,11 @@ export class ExcavatorScene implements Scene {
   private newTruckTimer = 0;
   private trucksLoaded = 0;
 
+  // Drag mode — bound on first pointer down, cleared on release.
+  private dragMode: 'idle' | 'bucket' | 'drive' = 'idle';
+  private dragPointerId: number | null = null;
+  private driveOffsetX = 0;
+
   onEnter(ctx: FrameContext) { this.layout(ctx); }
   onResize(ctx: FrameContext) { this.layout(ctx); }
 
@@ -98,10 +103,51 @@ export class ExcavatorScene implements Scene {
     const exc = this.excavator;
     const terr = this.terrain;
 
+    // Resolve / refresh the active pointer + drag mode.
     let activePointer = null;
-    for (const p of pointers.values()) { if (p.down) { activePointer = p; break; } }
+    if (this.dragPointerId !== null) {
+      activePointer = pointers.get(this.dragPointerId) ?? null;
+      if (!activePointer || !activePointer.down) {
+        this.dragPointerId = null;
+        this.dragMode = 'idle';
+        activePointer = null;
+      }
+    }
+    if (!activePointer) {
+      for (const p of pointers.values()) {
+        if (p.down) {
+          activePointer = p;
+          this.dragPointerId = p.id;
+          if (exc.isOverBody(p.x, p.y)) {
+            this.dragMode = 'drive';
+            this.driveOffsetX = exc.x - p.x;
+          } else {
+            this.dragMode = 'bucket';
+          }
+          break;
+        }
+      }
+    }
 
-    if (activePointer) {
+    exc.driving = this.dragMode === 'drive';
+
+    if (this.dragMode === 'drive' && activePointer) {
+      // Drive: target follows pointer with locked initial offset.
+      let target = activePointer.x + this.driveOffsetX;
+      const minX = exc.scale * 0.5;
+      let maxX = this.sceneWidth - exc.scale * 0.5;
+      if (this.truck && this.truck.state !== 'leaving') {
+        const blockX = this.truck.x - this.truckScale * 0.5 - exc.scale * 0.55;
+        if (blockX < maxX) maxX = blockX;
+      }
+      if (target < minX) target = minX;
+      if (target > maxX) target = maxX;
+      exc.driveTo(target, dt);
+      // Stow the bucket up high while driving.
+      const travelX = exc.x + exc.scale * 0.45;
+      const travelY = exc.y - exc.scale * 0.55;
+      exc.setBucketTarget(travelX, travelY);
+    } else if (this.dragMode === 'bucket' && activePointer) {
       exc.setBucketTarget(activePointer.x, activePointer.y);
     } else {
       const restX = exc.x + exc.scale * 0.55;
@@ -199,6 +245,12 @@ export class ExcavatorScene implements Scene {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'alphabetic';
       ctx.fillText('Tap to start!', width / 2, height - 24);
+    } else {
+      ctx.fillStyle = 'rgba(58,40,24,0.55)';
+      ctx.font = `${Math.round(Math.min(width, height) * 0.026)}px system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText('drag bucket to dig  •  drag the digger to drive', width / 2, height - 14);
     }
   }
 

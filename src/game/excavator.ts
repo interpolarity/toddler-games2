@@ -27,13 +27,36 @@ export class Excavator {
   dumping = false;
   private dumpTimer = 0;
   private idle = 0;
+  private prevX: number;
+  wheelRot = 0;
+  driving = false;
 
   constructor(x: number, y: number, scale: number) {
     this.x = x;
     this.y = y;
     this.scale = scale;
+    this.prevX = x;
     this.targetX = x + scale * 0.55;
     this.targetY = y - scale * 0.15;
+  }
+
+  isOverBody(x: number, y: number): boolean {
+    const s = this.scale;
+    return x >= this.x - s * 0.55 && x <= this.x + s * 0.32 &&
+           y >= this.y - s * 0.60 && y <= this.y + s * 0.12;
+  }
+
+  driveTo(targetX: number, dt: number) {
+    const speed = this.scale * 1.8; // px/sec
+    const dx = targetX - this.x;
+    const adx = dx < 0 ? -dx : dx;
+    if (adx < 0.5) {
+      this.x = targetX;
+      return;
+    }
+    const dir = dx < 0 ? -1 : 1;
+    const move = dir * (speed * dt < adx ? speed * dt : adx);
+    this.x += move;
   }
 
   setBucketTarget(x: number, y: number) {
@@ -94,6 +117,12 @@ export class Excavator {
 
   update(dt: number, groundY: number) {
     this.idle += dt;
+
+    // Wheel rotation tracks actual horizontal movement so sprockets and
+    // road wheels only spin when the excavator is driving.
+    const moveDx = this.x - this.prevX;
+    if (moveDx !== 0) this.wheelRot += moveDx / (this.scale * 0.075);
+    this.prevX = this.x;
 
     // 2-link IK
     const sh = this.getShoulderPos();
@@ -186,9 +215,9 @@ export class Excavator {
     }
 
     // Drive sprocket (rear)
-    this.drawSprocket(ctx, x - s * 0.42, y - s * 0.03, s * 0.075, this.idle * 1.4);
+    this.drawSprocket(ctx, x - s * 0.42, y - s * 0.03, s * 0.075, this.wheelRot);
     // Idler (front)
-    this.drawSprocket(ctx, x + s * 0.42, y - s * 0.03, s * 0.075, this.idle * 1.4);
+    this.drawSprocket(ctx, x + s * 0.42, y - s * 0.03, s * 0.075, this.wheelRot);
 
     // Road wheels
     ctx.fillStyle = '#383838';
