@@ -1,151 +1,142 @@
 import type { FrameContext, Scene } from '../types';
+import { Excavator } from '../game/excavator';
+import { Terrain } from '../game/terrain';
+import { Background } from '../game/background';
 
-// Minimal excavator placeholder so the scaffold is interactive on day one.
-// Drag anywhere to raise/lower the arm. Replace with the real game progressively.
 export class ExcavatorScene implements Scene {
-  private armAngle = -0.4; // radians, negative = arm raised
-  private targetArmAngle = -0.4;
-  private bucketAngle = 0.6;
-  private cabX = 0; // anchor in world units (0..1 along ground)
+  private excavator!: Excavator;
+  private terrain!: Terrain;
+  private background!: Background;
+  private initialized = false;
+  private trips = 0;
+  private dumpInProgress = false;
 
-  update({ pointers, dt, width, height, orientation }: FrameContext) {
-    // Drag controls arm angle. Vertical drag from anywhere on screen.
-    const first = pointers.values().next().value;
-    if (first?.down) {
-      const portrait = orientation === 'portrait';
-      const range = portrait ? height * 0.6 : height * 0.7;
-      const norm = (first.y - height * 0.2) / range; // 0 top .. 1 bottom
-      this.targetArmAngle = -1.0 + Math.max(0, Math.min(1, norm)) * 1.4;
-      this.bucketAngle = 0.3 + Math.max(0, Math.min(1, norm)) * 0.8;
-    } else {
-      // Slow drift back toward neutral so it never sits dead-still
-      this.targetArmAngle += Math.sin(performance.now() / 1500) * 0.0008;
-    }
-    // Smooth ease toward target
-    const k = 1 - Math.pow(0.001, dt);
-    this.armAngle += (this.targetArmAngle - this.armAngle) * k;
+  onEnter(ctx: FrameContext) { this.layout(ctx); }
+  onResize(ctx: FrameContext) { this.layout(ctx); }
 
-    // Idle sway of the cab so the screen feels alive
-    this.cabX = 0.5 + Math.sin(performance.now() / 2400) * 0.02;
-    void width;
-  }
-
-  render({ ctx, width, height, orientation }: FrameContext) {
+  private layout({ width, height, orientation }: FrameContext) {
     const portrait = orientation === 'portrait';
-    const horizonY = portrait ? height * 0.55 : height * 0.65;
+    const horizonY = portrait ? height * 0.42 : height * 0.55;
+    const groundBaseY = horizonY + 6;
 
-    // Sky
-    const sky = ctx.createLinearGradient(0, 0, 0, horizonY);
-    sky.addColorStop(0, '#9ad8ff');
-    sky.addColorStop(1, '#d8efff');
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, width, horizonY);
+    if (!this.initialized) {
+      this.background = new Background(width, height, horizonY);
+      this.terrain = new Terrain(width, height, groundBaseY);
+    } else {
+      this.background.resize(width, height, horizonY);
+      this.terrain.resize(width, height, groundBaseY);
+    }
 
-    // Sun
-    ctx.fillStyle = '#ffe680';
-    ctx.beginPath();
-    ctx.arc(width * 0.85, height * 0.18, Math.min(width, height) * 0.06, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Ground
-    const ground = ctx.createLinearGradient(0, horizonY, 0, height);
-    ground.addColorStop(0, '#caa472');
-    ground.addColorStop(1, '#8a6a3f');
-    ctx.fillStyle = ground;
-    ctx.fillRect(0, horizonY, width, height - horizonY);
-
-    // Dirt mound
-    ctx.fillStyle = '#7a5a30';
-    ctx.beginPath();
-    ctx.ellipse(width * 0.78, horizonY + 18, width * 0.18, 22, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Excavator
-    const scale = Math.min(width, height) * (portrait ? 0.55 : 0.4);
-    const baseX = width * this.cabX;
-    const baseY = horizonY + 4;
-    this.drawExcavator(ctx, baseX, baseY, scale);
-
-    // HUD hint (tiny, won't dominate)
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.font = `${Math.round(Math.min(width, height) * 0.022)}px system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.fillText('drag up & down', width / 2, height - 14);
+    const excScale = Math.min(width, height) * (portrait ? 0.50 : 0.40);
+    const excX = portrait ? width * 0.42 : width * 0.32;
+    this.excavator = new Excavator(excX, groundBaseY, excScale);
+    this.initialized = true;
   }
 
-  private drawExcavator(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) {
-    // Tracks
-    ctx.fillStyle = '#2c2c2c';
-    ctx.beginPath();
-    ctx.roundRect(x - s * 0.5, y - s * 0.12, s, s * 0.18, s * 0.06);
-    ctx.fill();
-    // Track wheels
-    ctx.fillStyle = '#444';
-    for (let i = 0; i < 5; i++) {
-      const wx = x - s * 0.4 + i * (s * 0.2);
-      ctx.beginPath();
-      ctx.arc(wx, y - s * 0.03, s * 0.05, 0, Math.PI * 2);
-      ctx.fill();
+  update({ pointers, dt, width, height }: FrameContext) {
+    if (!this.initialized) return;
+    void width;
+    void height;
+
+    this.background.update(dt);
+
+    const exc = this.excavator;
+    const terr = this.terrain;
+
+    // First active pointer drives the bucket target.
+    let activePointer = null;
+    for (const p of pointers.values()) { if (p.down) { activePointer = p; break; } }
+
+    if (activePointer) {
+      exc.setBucketTarget(activePointer.x, activePointer.y);
+    } else {
+      // Drift back to a comfortable rest pose just above the ground in front.
+      const restX = exc.x + exc.scale * 0.55;
+      const restY = exc.y - exc.scale * 0.22;
+      const k = 0.04;
+      exc.setBucketTarget(
+        exc.targetX + (restX - exc.targetX) * k,
+        exc.targetY + (restY - exc.targetY) * k,
+      );
     }
 
-    // Cab body
-    ctx.fillStyle = '#ffb84d';
-    ctx.beginPath();
-    ctx.roundRect(x - s * 0.32, y - s * 0.42, s * 0.55, s * 0.32, s * 0.05);
-    ctx.fill();
-    // Cab window
-    ctx.fillStyle = '#a9d6ff';
-    ctx.beginPath();
-    ctx.roundRect(x - s * 0.26, y - s * 0.38, s * 0.28, s * 0.18, s * 0.03);
-    ctx.fill();
+    exc.update(dt, exc.y);
 
-    // Boom (upper arm) — pivots at shoulder
-    const shoulderX = x + s * 0.12;
-    const shoulderY = y - s * 0.32;
-    const boomLen = s * 0.55;
-    const boomEndX = shoulderX + Math.cos(this.armAngle) * boomLen;
-    const boomEndY = shoulderY + Math.sin(this.armAngle) * boomLen;
-    ctx.strokeStyle = '#ffb84d';
-    ctx.lineWidth = s * 0.08;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(shoulderX, shoulderY);
-    ctx.lineTo(boomEndX, boomEndY);
-    ctx.stroke();
+    // Bucket-terrain interaction
+    const work = exc.getBucketWorkPoint();
+    if (exc.fill < 1 && !exc.dumping) {
+      const carved = terr.carve(work.x, work.y, work.r, dt);
+      if (carved) {
+        const fillGain = carved.volume * 0.00035;
+        exc.fill = Math.min(1, exc.fill + fillGain);
+        exc.fillMaterial = carved.material;
+        if (Math.random() < 0.06 && 'vibrate' in navigator) {
+          navigator.vibrate?.(8);
+        }
+      }
+    }
 
-    // Stick (lower arm)
-    const stickLen = s * 0.4;
-    const stickAngle = this.armAngle + 0.9;
-    const stickEndX = boomEndX + Math.cos(stickAngle) * stickLen;
-    const stickEndY = boomEndY + Math.sin(stickAngle) * stickLen;
-    ctx.lineWidth = s * 0.06;
-    ctx.beginPath();
-    ctx.moveTo(boomEndX, boomEndY);
-    ctx.lineTo(stickEndX, stickEndY);
-    ctx.stroke();
+    // Trigger dump release at start of dump animation
+    if (exc.dumping && !this.dumpInProgress && exc.fill > 0) {
+      const dumpSpawnX = work.x;
+      const dumpSpawnY = work.y - exc.scale * 0.05;
+      const volume = exc.fill * 1500;
+      terr.dump(dumpSpawnX, dumpSpawnY, volume, exc.fillMaterial);
+      this.dumpInProgress = true;
+      this.trips++;
+      if ('vibrate' in navigator) navigator.vibrate?.(20);
+    }
+    if (!exc.dumping) this.dumpInProgress = false;
 
-    // Bucket
-    ctx.fillStyle = '#444';
-    ctx.save();
-    ctx.translate(stickEndX, stickEndY);
-    ctx.rotate(stickAngle + this.bucketAngle);
+    terr.update(dt);
+  }
+
+  render({ ctx, width, height }: FrameContext) {
+    if (!this.initialized) return;
+
+    this.background.draw(ctx);
+    this.terrain.draw(ctx);
+    this.excavator.draw(ctx);
+
+    // Trip counter HUD
+    if (this.trips > 0) {
+      const padX = 18, padY = 14;
+      const label = `🚜 ${this.trips}`;
+      ctx.font = `bold ${Math.round(Math.min(width, height) * 0.045)}px system-ui, sans-serif`;
+      const metrics = ctx.measureText(label);
+      const w = metrics.width + 24;
+      const h = Math.min(width, height) * 0.07;
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      this.roundRect(ctx, width - w - padX, padY, w, h, h * 0.4);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = '#3a2818';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, width - w / 2 - padX, padY + h / 2);
+    }
+
+    // Hint (bottom)
+    ctx.fillStyle = 'rgba(58,40,24,0.55)';
+    ctx.font = `${Math.round(Math.min(width, height) * 0.025)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('drag the bucket — dig down, lift high to dump', width / 2, height - 14);
+  }
+
+  private roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
     ctx.beginPath();
-    ctx.moveTo(-s * 0.04, 0);
-    ctx.lineTo(s * 0.16, 0);
-    ctx.lineTo(s * 0.12, s * 0.14);
-    ctx.lineTo(0, s * 0.16);
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
     ctx.closePath();
-    ctx.fill();
-    // Teeth
-    ctx.fillStyle = '#888';
-    for (let i = 0; i < 3; i++) {
-      ctx.beginPath();
-      ctx.moveTo(i * s * 0.04, s * 0.16);
-      ctx.lineTo(i * s * 0.04 + s * 0.02, s * 0.2);
-      ctx.lineTo(i * s * 0.04 + s * 0.04, s * 0.16);
-      ctx.closePath();
-      ctx.fill();
-    }
-    ctx.restore();
   }
 }
