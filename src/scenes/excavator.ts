@@ -1,9 +1,10 @@
-import type { FrameContext, Scene } from '../types';
+import type { FrameContext, Scene, SceneNavigator } from '../types';
 import { Excavator } from '../game/excavator';
 import { Terrain } from '../game/terrain';
 import { Background } from '../game/background';
 import { AudioBus } from '../game/audio';
 import { TreasureField, type TreasureType } from '../game/treasure';
+import { drawHomeButton, isOverHomeButton } from '../ui/homeButton';
 
 const TREASURE_WORDS: Record<TreasureType, string> = {
   bone: 'Bone!',
@@ -12,6 +13,7 @@ const TREASURE_WORDS: Record<TreasureType, string> = {
 };
 
 export class ExcavatorScene implements Scene {
+  private nav: SceneNavigator;
   private excavator!: Excavator;
   private terrain!: Terrain;
   private background!: Background;
@@ -43,6 +45,10 @@ export class ExcavatorScene implements Scene {
   // Cached layout dimensions so reset() can re-run layout without a frame ctx.
   private cachedHeight = 0;
   private cachedOrientation: 'landscape' | 'portrait' = 'landscape';
+
+  constructor(nav: SceneNavigator) {
+    this.nav = nav;
+  }
 
   onEnter(ctx: FrameContext) { this.layout(ctx); }
   onResize(ctx: FrameContext) { this.layout(ctx); }
@@ -129,19 +135,23 @@ export class ExcavatorScene implements Scene {
     }
     if (!activePointer) {
       for (const p of pointers.values()) {
-        if (p.down) {
-          activePointer = p;
-          this.dragPointerId = p.id;
-          // Convert pointer to world space for hit-test.
-          const worldX = p.x + this.cameraX;
-          if (exc.isOverBody(worldX, p.y)) {
-            this.dragMode = 'drive';
-            this.driveOffsetX = exc.x - worldX;
-          } else {
-            this.dragMode = 'bucket';
-          }
-          break;
+        if (!p.down) continue;
+        // Home button (screen space) — always wins.
+        if (isOverHomeButton(p.x, p.y, this.sceneWidth, this.cachedHeight)) {
+          this.nav.go('menu');
+          return;
         }
+        activePointer = p;
+        this.dragPointerId = p.id;
+        // Convert pointer to world space for hit-test.
+        const worldX = p.x + this.cameraX;
+        if (exc.isOverBody(worldX, p.y)) {
+          this.dragMode = 'drive';
+          this.driveOffsetX = exc.x - worldX;
+        } else {
+          this.dragMode = 'bucket';
+        }
+        break;
       }
     }
 
@@ -314,6 +324,7 @@ export class ExcavatorScene implements Scene {
     // of each slot so arcing treasures know where to fly.
     this.trayTargets = this.treasures.drawTray(ctx, width, height);
     this.treasures.drawInScreen(ctx);
+    drawHomeButton(ctx, width, height);
 
     if (this.gameComplete) {
       this.drawCompleteOverlay(ctx, width, height);

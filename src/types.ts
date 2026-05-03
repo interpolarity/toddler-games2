@@ -24,3 +24,9 @@ export interface Scene {
   update(ctx: FrameContext): void;
   render(ctx: FrameContext): void;
 }
+
+export type SceneId = 'menu' | 'excavator' | 'pizza' | 'burger';
+
+export interface SceneNavigator {
+  go(scene: SceneId): void;
+}
