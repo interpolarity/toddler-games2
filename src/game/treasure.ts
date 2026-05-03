@@ -47,6 +47,18 @@ export class TreasureField {
     this.generate(worldWidth, terrain);
   }
 
+  totalCount(): number {
+    return this.treasures.length;
+  }
+
+  foundCount(): number {
+    return this.collected.bone + this.collected.gem + this.collected.chest;
+  }
+
+  isComplete(): boolean {
+    return this.totalCount() > 0 && this.foundCount() === this.totalCount();
+  }
+
   private generate(worldWidth: number, terrain: Terrain) {
     // ~1 treasure per 220 world px, minimum 6.
     const count = Math.max(6, Math.floor(worldWidth / 220));
@@ -241,6 +253,12 @@ export class TreasureField {
       targets[types[i]] = { x: iconX, y: cy };
     }
     return targets;
+  }
+
+  // Public: lets the scene render a treasure icon outside this class (e.g.
+  // in the win-state stat row).
+  drawIcon(ctx: CanvasRenderingContext2D, x: number, y: number, type: TreasureType, scale: number) {
+    this.drawTreasure(ctx, x, y, type, scale);
   }
 
   private drawTreasure(ctx: CanvasRenderingContext2D, x: number, y: number, type: TreasureType, scale: number) {

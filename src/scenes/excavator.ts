@@ -44,6 +44,14 @@ export class ExcavatorScene implements Scene {
   private dragPointerId: number | null = null;
   private driveOffsetX = 0;
 
+  // Win state — fires when every buried treasure has been collected.
+  private gameComplete = false;
+  private completeAt = 0;
+  private completeConfetti: Array<{ x: number; y: number; vx: number; vy: number; rot: number; vrot: number; life: number; color: string; size: number }> = [];
+  // Cached layout dimensions so reset() can re-run layout without a frame ctx.
+  private cachedHeight = 0;
+  private cachedOrientation: 'landscape' | 'portrait' = 'landscape';
+
   onEnter(ctx: FrameContext) { this.layout(ctx); }
   onResize(ctx: FrameContext) { this.layout(ctx); }
 
@@ -52,6 +60,8 @@ export class ExcavatorScene implements Scene {
     const horizonY = portrait ? height * 0.32 : height * 0.55;
     const groundBaseY = horizonY + 6;
     this.sceneWidth = width;
+    this.cachedHeight = height;
+    this.cachedOrientation = orientation;
     this.groundBaseY = groundBaseY;
     // World is wider than the screen; camera scrolls to follow the digger.
     // Min 1500px so even narrow phones get plenty of horizontal room.
@@ -111,6 +121,23 @@ export class ExcavatorScene implements Scene {
 
   update({ pointers, dt }: FrameContext) {
     if (!this.initialized) return;
+
+    // Game-complete: tap-to-replay after a short grace period.
+    if (this.gameComplete) {
+      this.background.update(dt);
+      this.terrain.update(dt);
+      this.excavator.update(dt, this.excavator.y);
+      this.truck?.update(dt);
+      this.treasures.update(dt, this.cameraX, this.trayTargets, {
+        onReveal: () => {}, onCollect: () => {},
+      });
+      this.updateCompleteConfetti(dt);
+      const elapsed = (performance.now() - this.completeAt) / 1000;
+      if (elapsed > 2.0 && pointers.size > 0) {
+        this.reset();
+      }
+      return;
+    }
 
     // Audio unlock — first pointer interaction.
     if (!this.audioUnlocked && pointers.size > 0) {
@@ -271,6 +298,77 @@ export class ExcavatorScene implements Scene {
     };
     this.treasures.checkReveals(terr, treasureCb);
     this.treasures.update(dt, this.cameraX, this.trayTargets, treasureCb);
+
+    if (!this.gameComplete && this.treasures.isComplete()) {
+      this.triggerComplete();
+    }
+  }
+
+  private triggerComplete() {
+    this.gameComplete = true;
+    this.completeAt = performance.now();
+    if (this.audioUnlocked) {
+      this.audio.playFanfare();
+      setTimeout(() => this.audio.playFanfare(), 700);
+      setTimeout(() => this.audio.speak('All done! You did it!'), 1300);
+    }
+    if ('vibrate' in navigator) navigator.vibrate?.([20, 80, 20, 80, 40]);
+    this.spawnCompleteConfetti(80);
+  }
+
+  private spawnCompleteConfetti(n: number) {
+    const colors = ['#ff6b6b', '#feca57', '#48dbfb', '#1dd1a1', '#a55eea', '#ff9ff3', '#ffd6a5'];
+    for (let i = 0; i < n; i++) {
+      this.completeConfetti.push({
+        x: Math.random() * this.sceneWidth,
+        y: -20 - Math.random() * 80,
+        vx: (Math.random() - 0.5) * 80,
+        vy: 60 + Math.random() * 80,
+        rot: Math.random() * Math.PI * 2,
+        vrot: (Math.random() - 0.5) * 8,
+        life: 5 + Math.random() * 3,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        size: 5 + Math.random() * 4,
+      });
+    }
+  }
+
+  private updateCompleteConfetti(dt: number) {
+    for (let i = this.completeConfetti.length - 1; i >= 0; i--) {
+      const p = this.completeConfetti[i];
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vy += 60 * dt;
+      p.vx *= Math.pow(0.5, dt);
+      p.rot += p.vrot * dt;
+      p.life -= dt;
+      if (p.life <= 0 || p.y > this.cachedHeight + 50) {
+        this.completeConfetti.splice(i, 1);
+      }
+    }
+    // Keep raining new confetti so the celebration stays going.
+    if (this.completeConfetti.length < 80 && Math.random() < 0.7) {
+      this.spawnCompleteConfetti(4);
+    }
+  }
+
+  private reset() {
+    this.layout({
+      width: this.sceneWidth,
+      height: this.cachedHeight,
+      orientation: this.cachedOrientation,
+      ctx: undefined as unknown as CanvasRenderingContext2D,
+      pointers: new Map(),
+      dt: 0,
+    });
+    this.gameComplete = false;
+    this.completeConfetti.length = 0;
+    this.trucksLoaded = 0;
+    this.dumpInProgress = false;
+    this.dragMode = 'idle';
+    this.dragPointerId = null;
+    this.newTruckTimer = 0;
+    if (this.audioUnlocked) this.audio.playHonk();
   }
 
   render({ ctx, width, height }: FrameContext) {
@@ -297,6 +395,10 @@ export class ExcavatorScene implements Scene {
     this.treasures.drawInScreen(ctx);
     this.drawStarCount(ctx, width, height);
 
+    if (this.gameComplete) {
+      this.drawCompleteOverlay(ctx, width, height);
+    }
+
     // First-touch hint
     if (!this.audioUnlocked) {
       ctx.fillStyle = 'rgba(58,40,24,0.7)';
@@ -310,6 +412,91 @@ export class ExcavatorScene implements Scene {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'alphabetic';
       ctx.fillText('drag bucket to dig  •  drag the digger to drive', width / 2, height - 14);
+    }
+  }
+
+  private drawCompleteOverlay(ctx: CanvasRenderingContext2D, width: number, height: number) {
+    // Confetti raining behind the title.
+    for (const p of this.completeConfetti) {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.globalAlpha = Math.min(1, p.life * 0.6);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.55);
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+
+    // Soft white wash so the title pops.
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.fillRect(0, 0, width, height);
+
+    const t = (performance.now() - this.completeAt) / 1000;
+    const bob = Math.sin(t * 3.2) * 6;
+
+    // ALL DONE!
+    const titleSize = Math.min(width, height) * 0.13;
+    ctx.font = `900 ${Math.round(titleSize)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(8, titleSize * 0.10);
+    ctx.strokeStyle = '#fff';
+    ctx.strokeText('ALL DONE!', width / 2, height * 0.34 + bob);
+    const titleGrad = ctx.createLinearGradient(0, height * 0.28, 0, height * 0.42);
+    titleGrad.addColorStop(0, '#ff8c42');
+    titleGrad.addColorStop(1, '#aa3a08');
+    ctx.fillStyle = titleGrad;
+    ctx.fillText('ALL DONE!', width / 2, height * 0.34 + bob);
+
+    // Stat row: trucks loaded + treasures found, with mini icons.
+    const sz = Math.min(width, height) * 0.07;
+    const cy = height * 0.55;
+    const items: Array<{ kind: 'truck' | 'bone' | 'gem' | 'chest'; count: number }> = [
+      { kind: 'truck', count: this.trucksLoaded },
+      { kind: 'bone', count: this.treasures.collected.bone },
+      { kind: 'gem', count: this.treasures.collected.gem },
+      { kind: 'chest', count: this.treasures.collected.chest },
+    ];
+    ctx.font = `bold ${Math.round(sz * 0.9)}px system-ui, sans-serif`;
+    const labelGap = 14;
+    const slotW = sz + labelGap + ctx.measureText('99').width + 22;
+    const totalW = slotW * items.length;
+    let x = width / 2 - totalW / 2;
+    for (const item of items) {
+      const slotX = x + slotW / 2;
+      // Icon
+      if (item.kind === 'truck') {
+        this.drawStar(ctx, slotX - sz * 0.4, cy, sz * 0.5);
+      } else {
+        this.treasures.drawIcon(ctx, slotX - sz * 0.4, cy, item.kind, 0.9);
+      }
+      // Count
+      ctx.fillStyle = '#3a2818';
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 4;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.strokeText(`× ${item.count}`, slotX, cy);
+      ctx.fillText(`× ${item.count}`, slotX, cy);
+      x += slotW;
+    }
+
+    // Replay hint after grace period.
+    if (t > 2.0) {
+      const pulse = 0.65 + Math.sin(t * 4) * 0.35;
+      ctx.globalAlpha = pulse;
+      const hintSize = Math.min(width, height) * 0.045;
+      ctx.font = `bold ${Math.round(hintSize)}px system-ui, sans-serif`;
+      ctx.fillStyle = '#3a2818';
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 4;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      ctx.strokeText('Tap to play again', width / 2, height * 0.78);
+      ctx.fillText('Tap to play again', width / 2, height * 0.78);
+      ctx.globalAlpha = 1;
     }
   }
 
