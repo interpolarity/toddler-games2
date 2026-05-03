@@ -123,6 +123,44 @@ export class AudioBus {
     blow(170, t + 0.20, 0.28);
   }
 
+  // High, quick tinkle for treasure reveals.
+  playSparkle() {
+    if (!this.ctx || !this.master) return;
+    const t = this.ctx.currentTime;
+    const notes = [880, 1175, 1568];
+    notes.forEach((freq, i) => {
+      const start = t + i * 0.04;
+      const o = this.ctx!.createOscillator();
+      const g = this.ctx!.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(freq, start);
+      g.gain.setValueAtTime(0, start);
+      g.gain.linearRampToValueAtTime(0.07, start + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.001, start + 0.20);
+      o.connect(g);
+      g.connect(this.master!);
+      o.start(start);
+      o.stop(start + 0.22);
+    });
+  }
+
+  // Short ding when an item lands in the collection tray.
+  playCollect() {
+    if (!this.ctx || !this.master) return;
+    const t = this.ctx.currentTime;
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(1320, t);
+    o.frequency.exponentialRampToValueAtTime(880, t + 0.18);
+    g.gain.setValueAtTime(0.08, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+    o.connect(g);
+    g.connect(this.master);
+    o.start(t);
+    o.stop(t + 0.24);
+  }
+
   // Sparkle / fanfare when truck is full.
   playFanfare() {
     if (!this.ctx || !this.master) return;

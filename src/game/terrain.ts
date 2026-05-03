@@ -349,4 +349,11 @@ export class Terrain {
     const i = Math.max(0, Math.min(this.cells - 1, Math.floor(x / CELL)));
     return this.surface[i];
   }
+
+  // Original (undisturbed) surface y at a world x — used by treasure spawning
+  // so depths are measured from natural ground rather than current state.
+  originalAt(x: number): number {
+    const i = Math.max(0, Math.min(this.cells - 1, Math.floor(x / CELL)));
+    return this.original[i];
+  }
 }

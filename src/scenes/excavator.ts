@@ -4,15 +4,25 @@ import { Terrain } from '../game/terrain';
 import { Background } from '../game/background';
 import { Truck } from '../game/truck';
 import { AudioBus } from '../game/audio';
+import { TreasureField, type TreasureType } from '../game/treasure';
 
 const NUMBER_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 const CHEERS = ['Great job!', 'Wow!', 'Yes!', 'Amazing!', 'Hooray!', 'Yay!', 'Way to go!'];
+const TREASURE_WORDS: Record<TreasureType, string> = {
+  bone: 'Bone!',
+  gem: 'Diamond!',
+  chest: 'Treasure!',
+};
 
 export class ExcavatorScene implements Scene {
   private excavator!: Excavator;
   private terrain!: Terrain;
   private background!: Background;
   private truck: Truck | null = null;
+  private treasures!: TreasureField;
+  private trayTargets: Record<TreasureType, { x: number; y: number }> = {
+    bone: { x: 0, y: 0 }, gem: { x: 0, y: 0 }, chest: { x: 0, y: 0 },
+  };
   private audio = new AudioBus();
   private audioUnlocked = false;
   private initialized = false;
@@ -60,6 +70,9 @@ export class ExcavatorScene implements Scene {
       this.background.resize(this.worldWidth, height, horizonY);
       this.terrain.resize(this.worldWidth, height, groundBaseY);
     }
+
+    // Reseed treasures every layout (resize-resets the world).
+    this.treasures = new TreasureField(this.worldWidth, this.terrain);
 
     this.excavator = new Excavator(this.excX, groundBaseY, this.excScale);
     // Place camera so the excavator starts ~30% from the left of screen.
@@ -241,6 +254,23 @@ export class ExcavatorScene implements Scene {
     }
 
     terr.update(dt);
+
+    // Treasures — reveal anything newly exposed by the latest carve, then
+    // step bobs / arcs. Voice + sparkle sound on reveal; ding on collect.
+    const treasureCb = {
+      onReveal: (type: TreasureType) => {
+        if (this.audioUnlocked) {
+          this.audio.playSparkle();
+          setTimeout(() => this.audio.speak(TREASURE_WORDS[type]), 220);
+        }
+        if ('vibrate' in navigator) navigator.vibrate?.(15);
+      },
+      onCollect: (_type: TreasureType) => {
+        if (this.audioUnlocked) this.audio.playCollect();
+      },
+    };
+    this.treasures.checkReveals(terr, treasureCb);
+    this.treasures.update(dt, this.cameraX, this.trayTargets, treasureCb);
   }
 
   render({ ctx, width, height }: FrameContext) {
@@ -256,11 +286,15 @@ export class ExcavatorScene implements Scene {
     ctx.translate(-this.cameraX, 0);
     this.background.draw(ctx);
     this.terrain.draw(ctx);
+    this.treasures.drawInWorld(ctx);
     this.truck?.draw(ctx);
     this.excavator.draw(ctx);
     ctx.restore();
 
-    // HUD is in screen space (no camera offset).
+    // HUD is in screen space (no camera offset). Tray returns the world-fixed
+    // screen positions of each slot so arcing treasures know where to fly.
+    this.trayTargets = this.treasures.drawTray(ctx, width, height);
+    this.treasures.drawInScreen(ctx);
     this.drawStarCount(ctx, width, height);
 
     // First-touch hint
