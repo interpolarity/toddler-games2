@@ -193,11 +193,14 @@ export class ExcavatorScene implements Scene {
     }
 
     // Dump trigger — drops material on the ground; pile spreads via avalanche.
+    // Fill resets immediately so the bucket reads as empty and the next carve
+    // doesn't have to wait for the dump animation to finish.
     if (exc.dumping && !this.dumpInProgress && exc.fill > 0) {
       const dumpX = work.x;
       const dumpY = work.y - exc.scale * 0.05;
       terr.dump(dumpX, dumpY, exc.fill * 1500, exc.fillMaterial);
       if (this.audioUnlocked) this.audio.playDump();
+      exc.fill = 0;
       this.dumpInProgress = true;
       if ('vibrate' in navigator) navigator.vibrate?.(20);
     }

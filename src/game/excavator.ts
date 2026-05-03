@@ -145,9 +145,12 @@ export class Excavator {
     const targetBoom = beta - alpha;
     const targetStick = targetBoom + Math.PI - gamma;
 
-    const k = 1 - Math.pow(0.0008, dt);
-    this.boomAngle += (targetBoom - this.boomAngle) * k;
-    this.stickAngle += (targetStick - this.stickAngle) * k;
+    // Frame-rate-independent exponential smoothing on the IK angles.
+    // Higher rate = snappier response. Tuned so the arm reaches ~91% of
+    // target in about 0.15 s, which keeps fast finger drags responsive.
+    const armK = 1 - Math.exp(-15 * dt);
+    this.boomAngle += (targetBoom - this.boomAngle) * armK;
+    this.stickAngle += (targetStick - this.stickAngle) * armK;
 
     // Bucket curl logic
     const wrist = this.getBucketPivot();
@@ -158,10 +161,11 @@ export class Excavator {
     if (this.dumping) {
       targetBucket = -0.7;
       this.dumpTimer += dt;
-      if (this.dumpTimer > 1.2) {
+      // Short tip-and-recover. Particles spawn once at the dump trigger and
+      // the scene resets fill there, so the bucket can rejoin digging fast.
+      if (this.dumpTimer > 0.30) {
         this.dumping = false;
         this.dumpTimer = 0;
-        this.fill = 0;
       }
     } else if (isHigh && this.fill > 0.05) {
       this.dumping = true;
@@ -172,7 +176,9 @@ export class Excavator {
     } else {
       targetBucket = 0.4;
     }
-    this.bucketAngle += (targetBucket - this.bucketAngle) * k;
+    // Bucket curl can be a bit punchier than the arm (it's lighter).
+    const bucketK = 1 - Math.exp(-22 * dt);
+    this.bucketAngle += (targetBucket - this.bucketAngle) * bucketK;
   }
 
   draw(ctx: CanvasRenderingContext2D) {
