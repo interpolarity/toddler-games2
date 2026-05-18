@@ -479,15 +479,7 @@ export class PizzaScene implements Scene {
   // ============ Render ============
 
   render({ ctx, width, height }: FrameContext) {
-    // Cozy kitchen background
-    const bg = ctx.createLinearGradient(0, 0, 0, height);
-    bg.addColorStop(0, '#fff1d3');
-    bg.addColorStop(1, '#ffd5a5');
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, width, height);
-    // Wood-grain table lines (subtle)
-    ctx.fillStyle = 'rgba(170,100,40,0.06)';
-    for (let y = 0; y < height; y += 22) ctx.fillRect(0, y, width, 1);
+    this.drawKitchen(ctx, width, height);
 
     // Order of draw is phase-aware so the oven can be on top of the pizza
     // when the pizza is "inside" it.
@@ -716,7 +708,11 @@ export class PizzaScene implements Scene {
     const py = cy + t.ry * r;
     // Bounce: scale pop on placement
     const pop = t.bounceT > 0 ? 1 + Math.sin(t.bounceT * Math.PI) * 0.20 : 1;
-    this.drawTopping(ctx, px, py, t.type, t.scale * pop * (r / 280) * 1.6, t.rot, browning);
+    // Idle breathe — tiny phase-offset scale wobble so the pizza feels alive.
+    // Phase is seeded from rx/ry so each topping breathes a bit differently.
+    const phase = (t.rx * 7.3 + t.ry * 5.1);
+    const breathe = 1 + Math.sin(performance.now() / 600 + phase) * 0.025;
+    this.drawTopping(ctx, px, py, t.type, t.scale * pop * breathe * (r / 280) * 1.6, t.rot, browning);
   }
 
   // ============ Topping art (richer than v1) ============
@@ -1010,98 +1006,255 @@ export class PizzaScene implements Scene {
     ctx.restore();
   }
 
+  private drawKitchen(ctx: CanvasRenderingContext2D, width: number, height: number) {
+    // Counter line — splits the scene into brick wall (back) and wood counter (front).
+    const counterY = this.cachedHeight * 0.78;
+
+    // --- Brick wall (back) ---
+    // Warm cream wash so the room feels lit.
+    const wall = ctx.createLinearGradient(0, 0, 0, counterY);
+    wall.addColorStop(0, '#ffe4bf');
+    wall.addColorStop(1, '#f6c890');
+    ctx.fillStyle = wall;
+    ctx.fillRect(0, 0, width, counterY);
+
+    // Brick pattern — staggered, two shades, with mortar gaps.
+    const bw = Math.min(width, height) * 0.10;
+    const bh = bw * 0.45;
+    const mortar = '#e3b07a';
+    ctx.fillStyle = mortar;
+    ctx.fillRect(0, 0, width, counterY);
+    let row = 0;
+    for (let y = -bh; y < counterY; y += bh + 2) {
+      const offset = (row % 2) * (bw / 2);
+      for (let x = -bw + offset; x < width + bw; x += bw + 2) {
+        const shade = ((row * 31 + Math.round(x / bw)) % 3);
+        ctx.fillStyle = shade === 0 ? '#e7b07a' : shade === 1 ? '#d99a64' : '#c0875a';
+        roundRect(ctx, x, y, bw, bh, 3);
+        ctx.fill();
+      }
+      row++;
+    }
+    // Soft top-light vignette to keep eye on the action.
+    const vignette = ctx.createRadialGradient(width * 0.5, counterY * 0.6, 0, width * 0.5, counterY * 0.6, Math.max(width, counterY) * 0.85);
+    vignette.addColorStop(0, 'rgba(255,255,210,0.25)');
+    vignette.addColorStop(1, 'rgba(80,40,10,0.18)');
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, width, counterY);
+
+    // --- Wood counter (front) ---
+    const woodTop = counterY;
+    const woodBot = height;
+    const counterGrad = ctx.createLinearGradient(0, woodTop, 0, woodBot);
+    counterGrad.addColorStop(0, '#c08653');
+    counterGrad.addColorStop(0.4, '#a3683a');
+    counterGrad.addColorStop(1, '#7a4520');
+    ctx.fillStyle = counterGrad;
+    ctx.fillRect(0, woodTop, width, woodBot - woodTop);
+    // Thick lip outline so the counter reads as an edge.
+    ctx.fillStyle = '#3a2008';
+    ctx.fillRect(0, woodTop - 4, width, 4);
+    ctx.fillStyle = '#5a3a18';
+    ctx.fillRect(0, woodTop - 8, width, 4);
+    // Grain lines — irregular widths/positions so it doesn't look mechanical.
+    ctx.strokeStyle = 'rgba(60,30,8,0.28)';
+    ctx.lineWidth = 1.2;
+    const grainSeeds = [0.05, 0.13, 0.27, 0.38, 0.52, 0.61, 0.74, 0.85, 0.94];
+    for (const t of grainSeeds) {
+      const y = woodTop + (woodBot - woodTop) * t;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      for (let x = 0; x <= width; x += 24) {
+        ctx.lineTo(x, y + Math.sin(x * 0.04 + t * 9) * 1.6);
+      }
+      ctx.stroke();
+    }
+    // Knots
+    for (const [kx, ky, kr] of [[width * 0.15, woodTop + 28, 4], [width * 0.78, woodTop + 56, 5]] as const) {
+      ctx.fillStyle = 'rgba(40,20,8,0.5)';
+      ctx.beginPath();
+      ctx.ellipse(kx, ky, kr * 1.4, kr, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,210,160,0.2)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+
   private drawOven(ctx: CanvasRenderingContext2D) {
-    const ovenW = this.pizzaR * 2.6;
-    const ovenH = this.pizzaR * 2.6;
+    // A wood-fired pizza dome. Half-dome top on a stone base, brick texture,
+    // dark arched mouth with flickering flames inside, chimney puffing smoke.
+    const w = this.pizzaR * 2.7;
+    const h = this.pizzaR * 2.7;
     const cx = this.ovenCenterX();
     const cy = this.pizzaY;
     ctx.save();
     ctx.translate(cx, cy);
 
     const stroke = '#3a2010';
+    const stone1 = '#d6b890';
+    const stone2 = '#bd9870';
+    const stone3 = '#a37c54';
 
-    // Body — flat brick red with thick dark outline.
-    ctx.fillStyle = '#c8623a';
-    roundRect(ctx, -ovenW / 2, -ovenH / 2, ovenW, ovenH, 20);
+    // Stone base slab (rectangular hearth)
+    const baseW = w * 0.95;
+    const baseH = h * 0.18;
+    ctx.fillStyle = '#7a4520';
+    roundRect(ctx, -baseW / 2, h * 0.30, baseW, baseH, 6);
     ctx.fill();
     ctx.strokeStyle = stroke;
     ctx.lineWidth = 4;
     ctx.lineJoin = 'round';
     ctx.stroke();
+    // Wood-log fuel showing under the hearth
+    ctx.fillStyle = '#5a3818';
+    for (let i = 0; i < 3; i++) {
+      const lx = -baseW * 0.32 + i * baseW * 0.30;
+      ctx.beginPath();
+      ctx.ellipse(lx, h * 0.30 + baseH * 0.5, baseW * 0.10, baseH * 0.18, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#2a1408';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = '#8a5a30';
+      ctx.beginPath();
+      ctx.arc(lx, h * 0.30 + baseH * 0.5, baseW * 0.03, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#5a3818';
+    }
 
-    // Chimney
-    ctx.fillStyle = '#7a3a18';
-    roundRect(ctx, ovenW * 0.18, -ovenH / 2 - ovenH * 0.20, ovenW * 0.18, ovenH * 0.22, 5);
+    // Dome — half ellipse with brick texture clipped inside.
+    const domeW = w * 0.95;
+    const domeH = h * 0.66;
+    const domeTop = -h * 0.48;
+    const domeBot = h * 0.30;
+
+    // Outer dome silhouette (filled stone color first)
+    ctx.fillStyle = stone1;
+    ctx.beginPath();
+    ctx.moveTo(-domeW / 2, domeBot);
+    ctx.quadraticCurveTo(-domeW / 2 - 6, domeTop, 0, domeTop);
+    ctx.quadraticCurveTo(domeW / 2 + 6, domeTop, domeW / 2, domeBot);
+    ctx.closePath();
     ctx.fill();
+
+    // Brick courses — clipped to the dome shape.
+    ctx.save();
+    ctx.clip();
+    const brickH = h * 0.075;
+    let rowI = 0;
+    for (let y = domeTop; y < domeBot; y += brickH + 2) {
+      const offsetX = (rowI % 2) * (domeW * 0.06);
+      for (let x = -domeW / 2 - domeW * 0.06; x < domeW / 2; x += domeW * 0.12 + 2) {
+        const shadeIdx = (rowI * 37 + Math.round(x * 0.3)) % 3;
+        ctx.fillStyle = shadeIdx === 0 ? stone1 : shadeIdx === 1 ? stone2 : stone3;
+        roundRect(ctx, x + offsetX, y, domeW * 0.12, brickH, 3);
+        ctx.fill();
+      }
+      rowI++;
+    }
+    ctx.restore();
+    // Outline the dome over the bricks.
     ctx.strokeStyle = stroke;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(-domeW / 2, domeBot);
+    ctx.quadraticCurveTo(-domeW / 2 - 6, domeTop, 0, domeTop);
+    ctx.quadraticCurveTo(domeW / 2 + 6, domeTop, domeW / 2, domeBot);
+    ctx.closePath();
     ctx.stroke();
 
-    // Door window — flat circle.
-    const winR = ovenW * 0.40;
+    // Arched mouth — dark interior with flames when baking.
+    const mouthW = domeW * 0.62;
+    const mouthH = domeH * 0.62;
+    const mouthCx = 0;
+    const mouthCy = h * 0.07;
     const glowing = this.bakeT > 0.40 && this.bakeT < 0.85;
-    ctx.fillStyle = glowing ? '#f8a838' : '#3a2010';
+    ctx.save();
     ctx.beginPath();
-    ctx.arc(0, 0, winR, 0, Math.PI * 2);
+    ctx.moveTo(mouthCx - mouthW / 2, mouthCy + mouthH * 0.50);
+    ctx.lineTo(mouthCx - mouthW / 2, mouthCy - mouthH * 0.15);
+    ctx.quadraticCurveTo(mouthCx - mouthW / 2 - 4, mouthCy - mouthH * 0.65, mouthCx, mouthCy - mouthH * 0.65);
+    ctx.quadraticCurveTo(mouthCx + mouthW / 2 + 4, mouthCy - mouthH * 0.65, mouthCx + mouthW / 2, mouthCy - mouthH * 0.15);
+    ctx.lineTo(mouthCx + mouthW / 2, mouthCy + mouthH * 0.50);
+    ctx.closePath();
+    // Background gradient: warm glow when baking, deep shadow otherwise.
+    if (glowing) {
+      const g = ctx.createRadialGradient(mouthCx, mouthCy, 0, mouthCx, mouthCy, mouthW * 0.7);
+      g.addColorStop(0, '#ffd64a');
+      g.addColorStop(0.5, '#f08438');
+      g.addColorStop(1, '#7a2008');
+      ctx.fillStyle = g;
+    } else {
+      const g = ctx.createRadialGradient(mouthCx, mouthCy, 0, mouthCx, mouthCy, mouthW * 0.7);
+      g.addColorStop(0, '#3a1808');
+      g.addColorStop(1, '#0a0402');
+      ctx.fillStyle = g;
+    }
+    ctx.fill();
+    ctx.clip();
+    // Flame tongues — only when baking. Flicker via phase based on time.
+    if (glowing) {
+      const t = performance.now() / 1000;
+      ctx.fillStyle = '#ffe066';
+      ctx.strokeStyle = '#a85008';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 5; i++) {
+        const fx = mouthCx - mouthW * 0.35 + i * mouthW * 0.17;
+        const fr = mouthW * (0.10 + Math.sin(t * 6 + i) * 0.02);
+        const fh = mouthH * (0.30 + Math.sin(t * 4 + i * 1.3) * 0.05);
+        const fy = mouthCy + mouthH * 0.30;
+        ctx.beginPath();
+        ctx.moveTo(fx - fr, fy);
+        ctx.quadraticCurveTo(fx - fr * 0.6, fy - fh * 0.6, fx, fy - fh);
+        ctx.quadraticCurveTo(fx + fr * 0.6, fy - fh * 0.6, fx + fr, fy);
+        ctx.quadraticCurveTo(fx, fy + fh * 0.1, fx - fr, fy);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+      // Hot bed under flames
+      ctx.fillStyle = '#ffa030';
+      ctx.fillRect(mouthCx - mouthW / 2, mouthCy + mouthH * 0.40, mouthW, mouthH * 0.12);
+    }
+    ctx.restore();
+    // Mouth outline
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 5;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(mouthCx - mouthW / 2, mouthCy + mouthH * 0.50);
+    ctx.lineTo(mouthCx - mouthW / 2, mouthCy - mouthH * 0.15);
+    ctx.quadraticCurveTo(mouthCx - mouthW / 2 - 4, mouthCy - mouthH * 0.65, mouthCx, mouthCy - mouthH * 0.65);
+    ctx.quadraticCurveTo(mouthCx + mouthW / 2 + 4, mouthCy - mouthH * 0.65, mouthCx + mouthW / 2, mouthCy - mouthH * 0.15);
+    ctx.lineTo(mouthCx + mouthW / 2, mouthCy + mouthH * 0.50);
+    ctx.stroke();
+
+    // Keystone brick at top of the arch
+    ctx.fillStyle = stone2;
+    roundRect(ctx, -domeW * 0.05, mouthCy - mouthH * 0.78, domeW * 0.10, domeH * 0.13, 3);
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Chimney — slight angle, with smoke when baking
+    const chW = w * 0.16;
+    const chH = h * 0.30;
+    const chX = domeW * 0.18;
+    const chY = -h * 0.78;
+    ctx.fillStyle = '#9a7050';
+    roundRect(ctx, chX - chW / 2, chY, chW, chH, 6);
     ctx.fill();
     ctx.strokeStyle = stroke;
     ctx.lineWidth = 4;
     ctx.stroke();
-    // Inner ring detail (like a glass bevel)
-    ctx.strokeStyle = glowing ? '#f0c060' : '#5a3010';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(0, 0, winR - 5, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Flat "flame" shapes inside the window when baking.
-    if (glowing) {
-      ctx.fillStyle = '#ffd64a';
-      const flames = [[-winR * 0.45, winR * 0.20, winR * 0.18], [0, winR * 0.10, winR * 0.22], [winR * 0.40, winR * 0.25, winR * 0.18]];
-      for (const [fx, fy, fr] of flames as Array<[number, number, number]>) {
-        ctx.beginPath();
-        ctx.moveTo(fx - fr * 0.5, fy);
-        ctx.quadraticCurveTo(fx - fr * 0.6, fy - fr * 1.2, fx, fy - fr * 1.4);
-        ctx.quadraticCurveTo(fx + fr * 0.6, fy - fr * 1.2, fx + fr * 0.5, fy);
-        ctx.quadraticCurveTo(fx, fy + fr * 0.3, fx - fr * 0.5, fy);
-        ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = '#7a4010';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
-      // Window highlight to keep it readable.
-      ctx.fillStyle = 'rgba(255,255,255,0.30)';
-      ctx.beginPath();
-      ctx.ellipse(-winR * 0.30, -winR * 0.45, winR * 0.30, winR * 0.10, -0.4, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Two flat dial knobs on the side.
-    for (let i = 0; i < 2; i++) {
-      const kx = -ovenW * 0.36 + i * ovenW * 0.18;
-      const ky = ovenH * 0.36;
-      ctx.fillStyle = '#fff5d8';
-      ctx.beginPath();
-      ctx.arc(kx, ky, ovenW * 0.06, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = stroke;
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
-      ctx.strokeStyle = stroke;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(kx, ky);
-      ctx.lineTo(kx + Math.cos(i * 0.8 - 0.6) * ovenW * 0.05, ky + Math.sin(i * 0.8 - 0.6) * ovenW * 0.05);
-      ctx.stroke();
-    }
-
-    // Door handle bar across the bottom of the door window.
-    ctx.fillStyle = '#fff5d8';
-    roundRect(ctx, -ovenW * 0.30, ovenH * 0.20, ovenW * 0.60, ovenH * 0.06, ovenH * 0.03);
+    // Chimney cap
+    ctx.fillStyle = '#5a3818';
+    roundRect(ctx, chX - chW * 0.65, chY - chH * 0.10, chW * 1.3, chH * 0.10, 3);
     ctx.fill();
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = 2.5;
     ctx.stroke();
+
     ctx.restore();
   }
 
