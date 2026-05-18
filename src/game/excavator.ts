@@ -198,206 +198,161 @@ export class Excavator {
   }
 
   private drawTracks(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) {
-    // Track frame
-    ctx.fillStyle = '#1a1a1a';
-    this.roundRect(ctx, x - s * 0.50, y - s * 0.13, s * 1.0, s * 0.20, s * 0.05);
+    // Sago-style tracks: solid dark-brown chassis, three big rounded wheels
+    // with cream hubs, a handful of chunky cleats, thick outlines, no gradients.
+    const stroke = '#3a1808';
+
+    // Track frame (rounded slab)
+    ctx.fillStyle = '#3a2818';
+    this.roundRect(ctx, x - s * 0.52, y - s * 0.15, s * 1.04, s * 0.24, s * 0.10);
     ctx.fill();
-
-    // Inner shadow strip
-    ctx.fillStyle = '#0d0d0d';
-    ctx.fillRect(x - s * 0.46, y - s * 0.08, s * 0.92, s * 0.05);
-
-    // Grouser plates (cleats on the track)
-    ctx.fillStyle = '#2c2c2c';
-    const plates = 16;
-    for (let i = 0; i < plates; i++) {
-      const tx = x - s * 0.48 + i * (s * 0.96) / plates;
-      ctx.fillRect(tx, y - s * 0.13, s * 0.04, s * 0.20);
-    }
-    ctx.fillStyle = 'rgba(255,255,255,0.06)';
-    for (let i = 0; i < plates; i++) {
-      const tx = x - s * 0.48 + i * (s * 0.96) / plates;
-      ctx.fillRect(tx, y - s * 0.13, s * 0.005, s * 0.20);
-    }
-
-    // Drive sprocket (rear)
-    this.drawSprocket(ctx, x - s * 0.42, y - s * 0.03, s * 0.075, this.wheelRot);
-    // Idler (front)
-    this.drawSprocket(ctx, x + s * 0.42, y - s * 0.03, s * 0.075, this.wheelRot);
-
-    // Road wheels
-    ctx.fillStyle = '#383838';
-    ctx.strokeStyle = '#5a5a5a';
-    ctx.lineWidth = 1.5;
-    for (let i = 0; i < 5; i++) {
-      const wx = x - s * 0.30 + i * s * 0.15;
-      ctx.beginPath();
-      ctx.arc(wx, y + s * 0.025, s * 0.038, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#5a5a5a';
-      ctx.beginPath();
-      ctx.arc(wx, y + s * 0.025, s * 0.012, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#383838';
-    }
-
-    // Undercarriage frame above tracks
-    ctx.fillStyle = '#9c6a1a';
-    this.roundRect(ctx, x - s * 0.46, y - s * 0.18, s * 0.92, s * 0.05, s * 0.02);
-    ctx.fill();
-    ctx.strokeStyle = '#6e4810';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = s * 0.022;
+    ctx.lineJoin = 'round';
     ctx.stroke();
+
+    // Track top deck — thin warm-orange strip so the body line reads.
+    ctx.fillStyle = '#d68a2a';
+    this.roundRect(ctx, x - s * 0.50, y - s * 0.18, s * 1.0, s * 0.06, s * 0.025);
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = s * 0.020;
+    ctx.stroke();
+
+    // Big chunky cleats — just six of them so the eye reads "tracked vehicle"
+    // without the busy 16-plate grouser pattern.
+    ctx.fillStyle = '#1a0e04';
+    const cleatN = 6;
+    for (let i = 0; i < cleatN; i++) {
+      const tx = x - s * 0.45 + i * (s * 0.9) / (cleatN - 1) - s * 0.025;
+      this.roundRect(ctx, tx, y - s * 0.12, s * 0.05, s * 0.20, s * 0.022);
+      ctx.fill();
+    }
+
+    // Wheels: drive sprocket (rear), idler (front), and two road wheels
+    // between them. Each is a flat circle with cream hub and a single spoke
+    // line that rotates with the vehicle.
+    const wheelR = s * 0.085;
+    const wheelY = y - s * 0.02;
+    const wheelXs = [-0.42, -0.14, 0.14, 0.42];
+    for (const wx of wheelXs) {
+      this.drawSagoWheel(ctx, x + s * wx, wheelY, wheelR, this.wheelRot, stroke);
+    }
   }
 
-  private drawSprocket(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, rot: number) {
-    ctx.fillStyle = '#383838';
-    ctx.strokeStyle = '#666';
-    ctx.lineWidth = 1.5;
+  private drawSagoWheel(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, rot: number, stroke: string) {
+    // Outer tire
+    ctx.fillStyle = '#1a0e04';
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = r * 0.30;
     ctx.stroke();
-    // Teeth
-    ctx.fillStyle = '#1a1a1a';
-    for (let i = 0; i < 9; i++) {
-      const a = rot + (i / 9) * Math.PI * 2;
-      const tx = cx + Math.cos(a) * r * 1.05;
-      const ty = cy + Math.sin(a) * r * 1.05;
-      ctx.beginPath();
-      ctx.arc(tx, ty, r * 0.18, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // Hub
-    ctx.fillStyle = '#5a5a5a';
+    // Hub (cream)
+    ctx.fillStyle = '#fff5d8';
     ctx.beginPath();
-    ctx.arc(cx, cy, r * 0.4, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r * 0.46, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#222';
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = r * 0.22;
+    ctx.stroke();
+    // Single spoke that rotates so motion reads
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = r * 0.18;
+    ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.arc(cx, cy, r * 0.18, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.moveTo(cx + Math.cos(rot) * r * 0.30, cy + Math.sin(rot) * r * 0.30);
+    ctx.lineTo(cx - Math.cos(rot) * r * 0.30, cy - Math.sin(rot) * r * 0.30);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
   }
 
   private drawHouse(ctx: CanvasRenderingContext2D, x: number, y: number, s: number) {
-    // Slewing ring (the disc the cab rotates on)
-    ctx.fillStyle = '#1a1a1a';
-    ctx.beginPath();
-    ctx.ellipse(x, y - s * 0.18, s * 0.18, s * 0.028, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#4a4a4a';
-    ctx.beginPath();
-    ctx.ellipse(x, y - s * 0.20, s * 0.16, s * 0.024, 0, 0, Math.PI * 2);
-    ctx.fill();
+    const stroke = '#3a1808';
+    const bodyMain = '#f5b04a';
+    const bodyShadow = '#d68a2a';
 
-    // Counterweight (rear, rounded)
-    const cwGrad = ctx.createLinearGradient(x - s * 0.32, y - s * 0.46, x - s * 0.10, y - s * 0.20);
-    cwGrad.addColorStop(0, '#ffc966');
-    cwGrad.addColorStop(1, '#d68b1a');
-    ctx.fillStyle = cwGrad;
+    // Slewing ring — flat dark disc.
+    ctx.fillStyle = '#1a0e04';
     ctx.beginPath();
-    ctx.moveTo(x - s * 0.32, y - s * 0.20);
-    ctx.lineTo(x - s * 0.32, y - s * 0.40);
-    ctx.quadraticCurveTo(x - s * 0.32, y - s * 0.48, x - s * 0.24, y - s * 0.48);
-    ctx.lineTo(x - s * 0.10, y - s * 0.48);
-    ctx.lineTo(x - s * 0.10, y - s * 0.20);
+    ctx.ellipse(x, y - s * 0.20, s * 0.20, s * 0.035, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = s * 0.018;
+    ctx.stroke();
+
+    // House — combined counterweight + cab as one chunky orange shape with
+    // rounded top corners, then a darker amber band along the bottom for
+    // depth (flat shape, not gradient).
+    ctx.fillStyle = bodyMain;
+    ctx.beginPath();
+    ctx.moveTo(x - s * 0.34, y - s * 0.20);
+    ctx.lineTo(x - s * 0.34, y - s * 0.44);
+    ctx.quadraticCurveTo(x - s * 0.34, y - s * 0.50, x - s * 0.27, y - s * 0.50);
+    ctx.lineTo(x + s * 0.18, y - s * 0.50);
+    ctx.quadraticCurveTo(x + s * 0.26, y - s * 0.50, x + s * 0.28, y - s * 0.42);
+    ctx.lineTo(x + s * 0.28, y - s * 0.20);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = '#7a4f10';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    // Counterweight grille
-    ctx.strokeStyle = '#7a4f10';
-    ctx.lineWidth = 1.2;
-    for (let i = 0; i < 5; i++) {
-      const gx = x - s * 0.30 + i * s * 0.04;
-      ctx.beginPath();
-      ctx.moveTo(gx, y - s * 0.42);
-      ctx.lineTo(gx, y - s * 0.22);
-      ctx.stroke();
-    }
-
-    // Cab (front, with sloped top)
-    const cabGrad = ctx.createLinearGradient(x - s * 0.10, y - s * 0.48, x + s * 0.24, y - s * 0.20);
-    cabGrad.addColorStop(0, '#ffd084');
-    cabGrad.addColorStop(1, '#e89a30');
-    ctx.fillStyle = cabGrad;
-    ctx.beginPath();
-    ctx.moveTo(x - s * 0.10, y - s * 0.20);
-    ctx.lineTo(x - s * 0.10, y - s * 0.48);
-    ctx.lineTo(x + s * 0.20, y - s * 0.48);
-    ctx.lineTo(x + s * 0.24, y - s * 0.40);
-    ctx.lineTo(x + s * 0.24, y - s * 0.20);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = '#9c6a1a';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = s * 0.026;
+    ctx.lineJoin = 'round';
     ctx.stroke();
 
-    // Door seam
-    ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-    ctx.lineWidth = 1;
+    // Bottom shadow band (flat lower stripe of darker amber)
+    ctx.fillStyle = bodyShadow;
     ctx.beginPath();
-    ctx.moveTo(x - s * 0.04, y - s * 0.20);
-    ctx.lineTo(x - s * 0.04, y - s * 0.42);
-    ctx.stroke();
-
-    // Cab window (large wraparound)
-    ctx.fillStyle = '#cce8ff';
-    ctx.beginPath();
-    ctx.moveTo(x - s * 0.06, y - s * 0.44);
-    ctx.lineTo(x + s * 0.18, y - s * 0.44);
-    ctx.lineTo(x + s * 0.21, y - s * 0.39);
-    ctx.lineTo(x + s * 0.21, y - s * 0.24);
-    ctx.lineTo(x - s * 0.06, y - s * 0.24);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = '#9c6a1a';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    // Window glass highlight (diagonal)
-    ctx.fillStyle = 'rgba(255,255,255,0.45)';
-    ctx.beginPath();
-    ctx.moveTo(x - s * 0.04, y - s * 0.42);
-    ctx.lineTo(x + s * 0.02, y - s * 0.42);
-    ctx.lineTo(x - s * 0.04, y - s * 0.30);
+    ctx.moveTo(x - s * 0.34, y - s * 0.27);
+    ctx.lineTo(x + s * 0.28, y - s * 0.27);
+    ctx.lineTo(x + s * 0.28, y - s * 0.20);
+    ctx.lineTo(x - s * 0.34, y - s * 0.20);
     ctx.closePath();
     ctx.fill();
 
-    // Window pillar
-    ctx.strokeStyle = '#9c6a1a';
-    ctx.lineWidth = 2;
+    // Re-outline the house perimeter so the shadow band doesn't bleed.
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = s * 0.026;
     ctx.beginPath();
-    ctx.moveTo(x + s * 0.07, y - s * 0.44);
-    ctx.lineTo(x + s * 0.07, y - s * 0.24);
+    ctx.moveTo(x - s * 0.34, y - s * 0.20);
+    ctx.lineTo(x - s * 0.34, y - s * 0.44);
+    ctx.quadraticCurveTo(x - s * 0.34, y - s * 0.50, x - s * 0.27, y - s * 0.50);
+    ctx.lineTo(x + s * 0.18, y - s * 0.50);
+    ctx.quadraticCurveTo(x + s * 0.26, y - s * 0.50, x + s * 0.28, y - s * 0.42);
+    ctx.lineTo(x + s * 0.28, y - s * 0.20);
+    ctx.closePath();
     ctx.stroke();
 
-    // Exhaust stack
-    ctx.fillStyle = '#222';
-    ctx.fillRect(x - s * 0.06, y - s * 0.56, s * 0.035, s * 0.10);
-    ctx.fillStyle = '#444';
-    ctx.beginPath();
-    ctx.arc(x - s * 0.043, y - s * 0.56, s * 0.025, 0, Math.PI * 2);
+    // Window — big rounded square of pale blue with a single white highlight.
+    ctx.fillStyle = '#bce0ff';
+    this.roundRect(ctx, x - s * 0.04, y - s * 0.46, s * 0.28, s * 0.22, s * 0.04);
     ctx.fill();
-    // Heat shield
-    ctx.fillStyle = '#666';
-    ctx.fillRect(x - s * 0.07, y - s * 0.50, s * 0.055, s * 0.012);
-
-    // Branding
-    ctx.fillStyle = 'rgba(40,20,5,0.65)';
-    ctx.font = `bold ${Math.round(s * 0.045)}px system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.fillText('DIG', x - s * 0.22, y - s * 0.28);
-
-    // Light on cab front
-    ctx.fillStyle = '#fffbcc';
-    ctx.beginPath();
-    ctx.arc(x + s * 0.22, y - s * 0.42, s * 0.015, 0, Math.PI * 2);
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = s * 0.022;
+    ctx.stroke();
+    // Single white highlight rectangle inside the window.
+    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    this.roundRect(ctx, x - s * 0.02, y - s * 0.44, s * 0.07, s * 0.13, s * 0.02);
     ctx.fill();
-    ctx.strokeStyle = '#222';
-    ctx.lineWidth = 1;
+
+    // Exhaust stack — chunky cream stack with a dark cap.
+    ctx.fillStyle = '#fff5d8';
+    this.roundRect(ctx, x - s * 0.10, y - s * 0.58, s * 0.06, s * 0.14, s * 0.018);
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = s * 0.020;
+    ctx.stroke();
+    ctx.fillStyle = stroke;
+    this.roundRect(ctx, x - s * 0.105, y - s * 0.60, s * 0.07, s * 0.025, s * 0.010);
+    ctx.fill();
+
+    // Headlamp on cab front.
+    ctx.fillStyle = '#fff5b0';
+    ctx.beginPath();
+    ctx.arc(x + s * 0.26, y - s * 0.38, s * 0.024, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = s * 0.018;
     ctx.stroke();
   }
 
@@ -452,19 +407,17 @@ export class Excavator {
   }
 
   private drawBoom(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, s: number) {
+    // Sago-style boom: flat warm-orange tapered shape with thick brown
+    // outline and one solid white highlight strip.
+    const stroke = '#3a1808';
     const dx = x2 - x1, dy = y2 - y1;
     const L = Math.hypot(dx, dy);
     const ux = dx / L, uy = dy / L;
     const nx = -uy, ny = ux;
-
     const w1 = s * 0.085;
-    const w2 = s * 0.055;
-    const arc = s * 0.10;
-
-    const grad = ctx.createLinearGradient(x1 - nx * w1, y1 - ny * w1, x1 + nx * w1, y1 + ny * w1);
-    grad.addColorStop(0, '#ffd084');
-    grad.addColorStop(1, '#d68b1a');
-    ctx.fillStyle = grad;
+    const w2 = s * 0.060;
+    const arc = s * 0.08;
+    ctx.fillStyle = '#f5b04a';
     ctx.beginPath();
     ctx.moveTo(x1 - nx * w1, y1 - ny * w1);
     const ctrlX = x1 + dx * 0.5 - nx * (w1 + arc);
@@ -474,30 +427,29 @@ export class Excavator {
     ctx.lineTo(x1 + nx * w1, y1 + ny * w1);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = '#7a4f10';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = s * 0.024;
+    ctx.lineJoin = 'round';
     ctx.stroke();
-
-    // Side panel highlight
-    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-    ctx.lineWidth = 1.5;
+    // Single white highlight band on the top edge.
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = s * 0.012;
+    ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(x1 - nx * w1 * 0.6, y1 - ny * w1 * 0.6);
-    ctx.quadraticCurveTo(ctrlX + nx * w1 * 0.3, ctrlY + ny * w1 * 0.3, x2 - nx * w2 * 0.6, y2 - ny * w2 * 0.6);
+    ctx.moveTo(x1 - nx * w1 * 0.55, y1 - ny * w1 * 0.55);
+    ctx.quadraticCurveTo(ctrlX + nx * w1 * 0.20, ctrlY + ny * w1 * 0.20, x2 - nx * w2 * 0.55, y2 - ny * w2 * 0.55);
     ctx.stroke();
+    ctx.lineCap = 'butt';
   }
 
   private drawStick(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, s: number) {
+    const stroke = '#3a1808';
     const dx = x2 - x1, dy = y2 - y1;
     const L = Math.hypot(dx, dy);
     const ux = dx / L, uy = dy / L;
     const nx = -uy, ny = ux;
-
-    const w = s * 0.045;
-    const grad = ctx.createLinearGradient(x1 - nx * w, y1 - ny * w, x1 + nx * w, y1 + ny * w);
-    grad.addColorStop(0, '#ffd084');
-    grad.addColorStop(1, '#d68b1a');
-    ctx.fillStyle = grad;
+    const w = s * 0.052;
+    ctx.fillStyle = '#f5b04a';
     ctx.beginPath();
     ctx.moveTo(x1 - nx * w, y1 - ny * w);
     ctx.lineTo(x2 - nx * w * 0.65, y2 - ny * w * 0.65);
@@ -505,30 +457,34 @@ export class Excavator {
     ctx.lineTo(x1 + nx * w, y1 + ny * w);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = '#7a4f10';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = s * 0.024;
+    ctx.lineJoin = 'round';
     ctx.stroke();
-
-    // Mounting bracket on top for hydraulic
-    ctx.fillStyle = '#5a3a10';
-    const bx = x1 + ux * L * 0.55 - nx * w;
-    const by = y1 + uy * L * 0.55 - ny * w;
-    ctx.fillRect(bx - 3, by - 3, 6, 6);
+    // Top edge highlight
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = s * 0.010;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x1 - nx * w * 0.55, y1 - ny * w * 0.55);
+    ctx.lineTo(x2 - nx * w * 0.40, y2 - ny * w * 0.40);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+    void ux; void uy; void L;
   }
 
   private drawHydraulic(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, t: number) {
+    // Sago hydraulic: cream cylinder + cream rod, thick brown outlines,
+    // dark pin caps.
+    const stroke = '#3a1808';
     const dx = x2 - x1, dy = y2 - y1;
     const L = Math.hypot(dx, dy);
     if (L < 1) return;
     const ux = dx / L, uy = dy / L;
     const nx = -uy, ny = ux;
-
     const cylLen = L * 0.55;
-    const grad = ctx.createLinearGradient(x1 - nx * t, y1 - ny * t, x1 + nx * t, y1 + ny * t);
-    grad.addColorStop(0, '#888');
-    grad.addColorStop(0.5, '#bbb');
-    grad.addColorStop(1, '#555');
-    ctx.fillStyle = grad;
+    // Cylinder body (warmer cream)
+    ctx.fillStyle = '#e8d8b8';
     ctx.beginPath();
     ctx.moveTo(x1 - nx * t, y1 - ny * t);
     ctx.lineTo(x1 + ux * cylLen - nx * t, y1 + uy * cylLen - ny * t);
@@ -536,13 +492,13 @@ export class Excavator {
     ctx.lineTo(x1 + nx * t, y1 + ny * t);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = t * 0.45;
+    ctx.lineJoin = 'round';
     ctx.stroke();
-
-    // Piston rod (silvery)
+    // Piston rod (lighter cream)
     const rodT = t * 0.45;
-    ctx.fillStyle = '#dcdcdc';
+    ctx.fillStyle = '#fff5d8';
     ctx.beginPath();
     ctx.moveTo(x1 + ux * cylLen - nx * rodT, y1 + uy * cylLen - ny * rodT);
     ctx.lineTo(x2 - nx * rodT, y2 - ny * rodT);
@@ -550,32 +506,31 @@ export class Excavator {
     ctx.lineTo(x1 + ux * cylLen + nx * rodT, y1 + uy * cylLen + ny * rodT);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = '#888';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = t * 0.35;
     ctx.stroke();
-
-    // End mounts
-    ctx.fillStyle = '#222';
+    // Dark pin caps
+    ctx.fillStyle = stroke;
     ctx.beginPath();
-    ctx.arc(x1, y1, t * 0.7, 0, Math.PI * 2);
+    ctx.arc(x1, y1, t * 0.75, 0, Math.PI * 2);
     ctx.fill();
     ctx.beginPath();
-    ctx.arc(x2, y2, t * 0.7, 0, Math.PI * 2);
+    ctx.arc(x2, y2, t * 0.75, 0, Math.PI * 2);
     ctx.fill();
   }
 
   private drawJointPin(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
-    ctx.fillStyle = '#222';
+    // Cream pin with thick brown outline + small dark center dot.
+    ctx.fillStyle = '#fff5d8';
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#666';
+    ctx.strokeStyle = '#3a1808';
+    ctx.lineWidth = r * 0.45;
+    ctx.stroke();
+    ctx.fillStyle = '#3a1808';
     ctx.beginPath();
-    ctx.arc(x, y, r * 0.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#bbb';
-    ctx.beginPath();
-    ctx.arc(x - r * 0.18, y - r * 0.18, r * 0.18, 0, Math.PI * 2);
+    ctx.arc(x, y, r * 0.35, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -584,149 +539,108 @@ export class Excavator {
     ctx.translate(px, py);
     ctx.rotate(angle);
 
-    // Local frame: pin at origin (0,0). +X = forward (toward teeth). +Y = down (into bucket).
-    // Body is a near-symmetric C-shape opening upward with pin slightly toward the back-top.
+    // Sago bucket: flat warm-gray scoop with thick brown outline, big cream
+    // teeth, and a friendlier (chunkier) silhouette than the realistic one.
+    const stroke = '#3a1808';
+    const bodyColor = '#7a6a5a';
+    const cavityColor = '#3a2818';
+    const teethColor = '#fff5d8';
     const w = s * BUCKET_LEN;
     const h = s * 0.20;
 
-    // Pin bracket — small ear above the body that anchors to the stick pin.
-    ctx.fillStyle = '#3a3a3a';
-    ctx.strokeStyle = '#1a1a1a';
-    ctx.lineWidth = 1.5;
+    // Pin bracket ear
+    ctx.fillStyle = stroke;
     ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(-w * 0.06, h * 0.07);
-    ctx.lineTo(w * 0.08, h * 0.07);
+    ctx.moveTo(0, -h * 0.04);
+    ctx.lineTo(-w * 0.07, h * 0.07);
+    ctx.lineTo(w * 0.09, h * 0.07);
     ctx.closePath();
     ctx.fill();
-    ctx.stroke();
 
-    // Body — a real excavator scoop, opening on top, curved bottom, teeth on the front lip.
-    // Both back wall and front wall reach the bucket floor so the shape reads symmetric.
-    const bodyGrad = ctx.createLinearGradient(0, h * 0.05, 0, h * 1.05);
-    bodyGrad.addColorStop(0, '#8a8a8a');
-    bodyGrad.addColorStop(0.5, '#5a5a5a');
-    bodyGrad.addColorStop(1, '#2e2e2e');
-    ctx.fillStyle = bodyGrad;
+    // Body — same C-shape but flat-filled.
+    ctx.fillStyle = bodyColor;
     ctx.beginPath();
-    // Top-back of opening
     ctx.moveTo(-w * 0.30, h * 0.07);
-    // Top edge of opening, going forward
     ctx.lineTo(w * 0.82, h * 0.07);
-    // Front-upper curve outward
     ctx.quadraticCurveTo(w * 1.00, h * 0.18, w * 0.98, h * 0.55);
-    // Front wall down to cutting edge
     ctx.lineTo(w * 0.92, h * 0.92);
-    // Front-bottom corner
     ctx.quadraticCurveTo(w * 0.78, h * 1.04, w * 0.50, h * 1.04);
-    // Bottom (slight curve, deeper in middle)
     ctx.quadraticCurveTo(w * 0.20, h * 1.06, -w * 0.05, h * 1.02);
-    // Back-bottom corner
     ctx.quadraticCurveTo(-w * 0.26, h * 0.96, -w * 0.32, h * 0.78);
-    // Back wall up
     ctx.lineTo(-w * 0.30, h * 0.07);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = '#1a1a1a';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = s * 0.024;
+    ctx.lineJoin = 'round';
     ctx.stroke();
 
-    // Inside cavity — darker inset showing the bucket is a hollow scoop.
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    // Inside cavity — flat dark inset.
+    ctx.fillStyle = cavityColor;
     ctx.beginPath();
-    ctx.moveTo(-w * 0.22, h * 0.14);
-    ctx.lineTo(w * 0.74, h * 0.14);
-    ctx.quadraticCurveTo(w * 0.86, h * 0.22, w * 0.84, h * 0.55);
+    ctx.moveTo(-w * 0.22, h * 0.16);
+    ctx.lineTo(w * 0.74, h * 0.16);
+    ctx.quadraticCurveTo(w * 0.86, h * 0.24, w * 0.84, h * 0.55);
     ctx.lineTo(w * 0.78, h * 0.85);
-    ctx.quadraticCurveTo(w * 0.55, h * 0.95, w * 0.20, h * 0.95);
+    ctx.quadraticCurveTo(w * 0.55, h * 0.94, w * 0.20, h * 0.94);
     ctx.quadraticCurveTo(-w * 0.05, h * 0.92, -w * 0.20, h * 0.85);
-    ctx.quadraticCurveTo(-w * 0.26, h * 0.62, -w * 0.22, h * 0.14);
+    ctx.quadraticCurveTo(-w * 0.26, h * 0.62, -w * 0.22, h * 0.16);
     ctx.closePath();
     ctx.fill();
 
-    // Material fill — visible load when carrying.
+    // Material fill — flat solid color when carrying (no rolling sine).
     if (this.fill > 0 && !this.dumping) {
       const fillH = h * 0.7 * Math.min(1, this.fill);
       const top = h * 0.88 - fillH;
-      const colors = this.fillMaterial === 'rock'
-        ? ['#6a6560', '#8a8580']
+      const matColor = this.fillMaterial === 'rock'
+        ? '#9a8a78'
         : this.fillMaterial === 'clay'
-        ? ['#8a4f20', '#a86a3a']
-        : ['#6e4810', '#9c6a1a'];
-      ctx.fillStyle = colors[0];
+        ? '#b07040'
+        : '#a07832';
+      ctx.fillStyle = matColor;
       ctx.beginPath();
-      ctx.moveTo(-w * 0.20, top + 4);
-      const segs = 8;
-      for (let i = 1; i <= segs; i++) {
-        const fx = -w * 0.20 + (w * 0.94) * (i / segs);
-        const bump = Math.sin(i * 1.7 + this.idle * 0.6) * 1.5;
-        ctx.lineTo(fx, top + bump);
-      }
+      ctx.moveTo(-w * 0.20, top);
+      ctx.lineTo(w * 0.74, top);
       ctx.lineTo(w * 0.74, h * 0.88);
       ctx.quadraticCurveTo(w * 0.40, h * 0.95, -w * 0.16, h * 0.88);
       ctx.closePath();
       ctx.fill();
-      // Lighter dust band on top of the load
-      ctx.fillStyle = colors[1];
-      ctx.beginPath();
-      ctx.moveTo(-w * 0.20, top + 4);
-      for (let i = 1; i <= segs; i++) {
-        const fx = -w * 0.20 + (w * 0.94) * (i / segs);
-        const bump = Math.sin(i * 1.7 + this.idle * 0.6) * 1.5;
-        ctx.lineTo(fx, top + bump);
-      }
-      ctx.lineTo(w * 0.74, top + 6);
-      ctx.lineTo(-w * 0.20, top + 6);
-      ctx.closePath();
-      ctx.fill();
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = s * 0.012;
+      ctx.stroke();
     }
 
-    // Cutting-edge wear band (lighter strip along the front lip)
-    ctx.strokeStyle = '#9a9a9a';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(-w * 0.05, h * 1.02);
-    ctx.quadraticCurveTo(w * 0.40, h * 1.07, w * 0.85, h * 0.96);
-    ctx.stroke();
-
-    // Teeth — 5 along the cutting edge, base width modest, length ≈ h*0.18.
-    ctx.fillStyle = '#d4d4d4';
-    ctx.strokeStyle = '#1a1a1a';
-    ctx.lineWidth = 1.2;
-    const teethN = 5;
-    const teethStart = -w * 0.02;
-    const teethEnd = w * 0.78;
+    // Teeth — four chunky cream teeth with thick brown outlines.
+    const teethN = 4;
+    const teethStart = w * 0.05;
+    const teethEnd = w * 0.70;
     for (let i = 0; i < teethN; i++) {
       const t = i / (teethN - 1);
       const tx = teethStart + (teethEnd - teethStart) * t;
-      // Base sits on the cutting edge — slight arc following the lip.
-      const ty = h * 1.04 + (1 - 4 * Math.pow(t - 0.5, 2)) * h * 0.02 - Math.abs(t - 0.5) * h * 0.03;
-      const baseHalf = w * 0.028;
-      const tipLen = h * 0.18;
+      const ty = h * 1.02 + (1 - 4 * Math.pow(t - 0.5, 2)) * h * 0.02;
+      const baseHalf = w * 0.045;
+      const tipLen = h * 0.20;
+      ctx.fillStyle = teethColor;
       ctx.beginPath();
       ctx.moveTo(tx - baseHalf, ty);
       ctx.lineTo(tx, ty + tipLen);
       ctx.lineTo(tx + baseHalf, ty);
       ctx.closePath();
       ctx.fill();
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = s * 0.020;
       ctx.stroke();
     }
 
-    // Side rib detail (panels on outer face)
-    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-    ctx.lineWidth = 1;
+    // Single white highlight stroke on the upper-front of the body.
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = s * 0.012;
+    ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(w * 0.10, h * 0.10);
-    ctx.lineTo(w * 0.13, h * 0.85);
-    ctx.moveTo(w * 0.45, h * 0.07);
-    ctx.lineTo(w * 0.50, h * 0.95);
+    ctx.moveTo(-w * 0.20, h * 0.11);
+    ctx.lineTo(w * 0.70, h * 0.11);
     ctx.stroke();
-
-    // Mounting boss highlight where the curl link attaches (back-top)
-    ctx.fillStyle = '#1a1a1a';
-    ctx.beginPath();
-    ctx.arc(-w * 0.18, h * 0.11, w * 0.018, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.lineCap = 'butt';
 
     ctx.restore();
   }

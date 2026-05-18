@@ -226,12 +226,13 @@ export class TreasureField {
     const x = padX;
     const y = padY;
 
-    // Panel background
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    this.roundRect(ctx, x, y, panelW, panelH, 10);
+    // Panel background — flat cream with thick brown outline.
+    ctx.fillStyle = '#fff6e0';
+    this.roundRect(ctx, x, y, panelW, panelH, 14);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(154,106,36,0.85)';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#4a2410';
+    ctx.lineWidth = 3.5;
+    ctx.lineJoin = 'round';
     ctx.stroke();
 
     const types: TreasureType[] = ['bone', 'gem', 'chest'];
@@ -267,122 +268,141 @@ export class TreasureField {
     else this.drawChest(ctx, x, y, scale);
   }
 
+  // Sago-style: flat fills, thick dark-brown outlines, one white highlight.
   private drawBone(ctx: CanvasRenderingContext2D, x: number, y: number, sc: number) {
     ctx.save();
     ctx.translate(x, y);
-    ctx.rotate(0.18);
-    ctx.fillStyle = '#fef9ed';
-    ctx.strokeStyle = '#7a6850';
-    ctx.lineWidth = 1.2;
-    // Middle bar
-    const w = 14 * sc;
-    const h = 5 * sc;
+    ctx.rotate(0.20);
+    const fill = '#fff5d8';
+    const stroke = '#4a2810';
+    // Combined silhouette: four round end-bumps + middle bar drawn as a
+    // single path so the thick outline traces the bone shape cleanly.
+    const w = 16 * sc;
+    const h = 6 * sc;
+    const r = 4.6 * sc;
+    const endX = w / 2;
+    const offY = 4.2 * sc;
+    ctx.fillStyle = fill;
     ctx.beginPath();
-    ctx.rect(-w / 2, -h / 2, w, h);
+    ctx.arc(-endX, -offY, r, Math.PI * 0.5, Math.PI * 1.5);
+    ctx.arc(-endX, offY, r, Math.PI * 1.5, Math.PI * 0.5, true);
+    ctx.lineTo(endX, offY + r);
+    ctx.arc(endX, offY, r, Math.PI * 0.5, Math.PI * 1.5, true);
+    ctx.arc(endX, -offY, r, Math.PI * 1.5, Math.PI * 0.5);
+    ctx.closePath();
     ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2.2 * sc;
+    ctx.lineJoin = 'round';
     ctx.stroke();
-    // Four end bumps
-    const r = 4.2 * sc;
-    const endX = w / 2 + 0.5;
-    const offY = 4.0 * sc;
-    for (const [bx, by] of [[-endX, -offY], [-endX, offY], [endX, -offY], [endX, offY]] as const) {
-      ctx.beginPath();
-      ctx.arc(bx, by, r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    }
-    // Highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.55)';
-    ctx.fillRect(-w / 2 + 1, -h / 2 + 0.5, w - 2, h * 0.35);
+    // Single highlight strip
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillRect(-w / 2 + 2 * sc, -h / 2 + 0.5 * sc, w - 4 * sc, h * 0.30);
     ctx.restore();
   }
 
   private drawGem(ctx: CanvasRenderingContext2D, x: number, y: number, sc: number) {
     ctx.save();
     ctx.translate(x, y);
-    const grad = ctx.createLinearGradient(0, -10 * sc, 0, 10 * sc);
-    grad.addColorStop(0, '#cef0ff');
-    grad.addColorStop(0.5, '#3aa5e8');
-    grad.addColorStop(1, '#125a9c');
-    ctx.fillStyle = grad;
+    const stroke = '#0e3a60';
+    // Flat blue diamond — solid fill, no gradient.
+    ctx.fillStyle = '#3aa5e8';
     ctx.beginPath();
     ctx.moveTo(0, -10 * sc);
-    ctx.lineTo(7 * sc, -4 * sc);
-    ctx.lineTo(8 * sc, 4 * sc);
+    ctx.lineTo(7.5 * sc, -4 * sc);
+    ctx.lineTo(8.5 * sc, 4 * sc);
     ctx.lineTo(0, 10 * sc);
-    ctx.lineTo(-8 * sc, 4 * sc);
-    ctx.lineTo(-7 * sc, -4 * sc);
+    ctx.lineTo(-8.5 * sc, 4 * sc);
+    ctx.lineTo(-7.5 * sc, -4 * sc);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = '#0b3050';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2.2 * sc;
+    ctx.lineJoin = 'round';
     ctx.stroke();
-    // Facet highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.65)';
+    // Solid lighter top facet
+    ctx.fillStyle = '#a8e0ff';
     ctx.beginPath();
     ctx.moveTo(0, -10 * sc);
-    ctx.lineTo(7 * sc, -4 * sc);
+    ctx.lineTo(7.5 * sc, -4 * sc);
     ctx.lineTo(0, -2 * sc);
+    ctx.lineTo(-7.5 * sc, -4 * sc);
     ctx.closePath();
     ctx.fill();
-    // Pip
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.6 * sc;
+    ctx.stroke();
+    // One solid white sparkle pip
     ctx.fillStyle = '#fff';
-    ctx.fillRect(-2.2 * sc, -7 * sc, 1.4 * sc, 1.4 * sc);
+    ctx.beginPath();
+    ctx.moveTo(-2 * sc, -6 * sc);
+    ctx.lineTo(-1 * sc, -7.5 * sc);
+    ctx.lineTo(0, -6 * sc);
+    ctx.lineTo(-1 * sc, -4.5 * sc);
+    ctx.closePath();
+    ctx.fill();
     ctx.restore();
   }
 
   private drawChest(ctx: CanvasRenderingContext2D, x: number, y: number, sc: number) {
     ctx.save();
     ctx.translate(x, y);
-    // Body
-    const bodyGrad = ctx.createLinearGradient(0, -2 * sc, 0, 10 * sc);
-    bodyGrad.addColorStop(0, '#9a6f3a');
-    bodyGrad.addColorStop(1, '#5a3818');
-    ctx.fillStyle = bodyGrad;
-    const bw = 22 * sc;
-    const bh = 12 * sc;
-    ctx.fillRect(-bw / 2, -2 * sc, bw, bh);
-    ctx.strokeStyle = '#3a2008';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(-bw / 2, -2 * sc, bw, bh);
-    // Curved lid (semi-ellipse)
-    ctx.fillStyle = '#7a5028';
+    const stroke = '#3a2008';
+    const bw = 24 * sc;
+    const bh = 13 * sc;
+    // Body — flat warm brown rounded rect
+    ctx.fillStyle = '#a87440';
+    this.roundRect(ctx, -bw / 2, -1 * sc, bw, bh, 3 * sc);
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2.4 * sc;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    // Lid — flat darker brown semi-ellipse
+    ctx.fillStyle = '#7a4f20';
     ctx.beginPath();
-    ctx.moveTo(-bw / 2, -2 * sc);
-    ctx.quadraticCurveTo(0, -10 * sc, bw / 2, -2 * sc);
+    ctx.moveTo(-bw / 2, -1 * sc);
+    ctx.quadraticCurveTo(0, -11 * sc, bw / 2, -1 * sc);
     ctx.closePath();
     ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2.4 * sc;
     ctx.stroke();
-    // Lid highlight
-    ctx.fillStyle = 'rgba(255,220,170,0.4)';
+    // Lid plank lines
+    ctx.strokeStyle = '#5a3818';
+    ctx.lineWidth = 1.4 * sc;
     ctx.beginPath();
-    ctx.moveTo(-bw / 2 + 2, -3 * sc);
-    ctx.quadraticCurveTo(-2 * sc, -8 * sc, 4 * sc, -5 * sc);
-    ctx.closePath();
-    ctx.fill();
-    // Metal bands
-    ctx.strokeStyle = '#d4a020';
-    ctx.lineWidth = 2 * sc * 0.9;
-    ctx.beginPath();
-    ctx.moveTo(-bw / 2, 1.5 * sc);
-    ctx.lineTo(bw / 2, 1.5 * sc);
+    ctx.moveTo(-bw / 2 + 1 * sc, -1 * sc);
+    ctx.quadraticCurveTo(-bw / 4, -7 * sc, 0, -8.5 * sc);
+    ctx.moveTo(0, -8.5 * sc);
+    ctx.quadraticCurveTo(bw / 4, -7 * sc, bw / 2 - 1 * sc, -1 * sc);
     ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(-bw / 2, 7 * sc);
-    ctx.lineTo(bw / 2, 7 * sc);
-    ctx.stroke();
-    // Lock
+    // Two flat gold metal bands
     ctx.fillStyle = '#f6c850';
-    ctx.fillRect(-3.5 * sc, -1 * sc, 7 * sc, 6 * sc);
-    ctx.strokeStyle = '#7a5008';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(-3.5 * sc, -1 * sc, 7 * sc, 6 * sc);
-    // Keyhole
-    ctx.fillStyle = '#3a2008';
-    ctx.beginPath();
-    ctx.arc(0, 1.2 * sc, 0.9 * sc, 0, Math.PI * 2);
+    ctx.fillRect(-bw / 2, 1.5 * sc, bw, 1.6 * sc);
+    ctx.fillRect(-bw / 2, 7.5 * sc, bw, 1.6 * sc);
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.2 * sc;
+    ctx.strokeRect(-bw / 2, 1.5 * sc, bw, 1.6 * sc);
+    ctx.strokeRect(-bw / 2, 7.5 * sc, bw, 1.6 * sc);
+    // Lock — chunky gold square
+    ctx.fillStyle = '#f6c850';
+    this.roundRect(ctx, -4 * sc, -1 * sc, 8 * sc, 7 * sc, 1.4 * sc);
     ctx.fill();
-    ctx.fillRect(-0.4 * sc, 1.2 * sc, 0.8 * sc, 2.5 * sc);
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.8 * sc;
+    ctx.stroke();
+    // Keyhole
+    ctx.fillStyle = stroke;
+    ctx.beginPath();
+    ctx.arc(0, 1 * sc, 1.1 * sc, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(-0.55 * sc, 1 * sc, 1.1 * sc, 2.8 * sc);
+    // Single white highlight on the lid
+    ctx.fillStyle = 'rgba(255,235,200,0.5)';
+    ctx.beginPath();
+    ctx.ellipse(-bw * 0.18, -6.5 * sc, bw * 0.10, 1.6 * sc, -0.5, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
 

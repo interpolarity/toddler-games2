@@ -579,7 +579,8 @@ export class PizzaScene implements Scene {
       const alpha = 1 - slice.fade;
       ctx.globalAlpha = alpha;
       ctx.translate(this.pizzaX + Math.cos(cAng) * slice.lift * 0.4, this.pizzaY + offsetY);
-      // Clip to slice wedge so toppings get cut along slice lines.
+      // Filled content clipped to the wedge.
+      ctx.save();
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.arc(0, 0, r, a0, a1);
@@ -590,18 +591,17 @@ export class PizzaScene implements Scene {
         this.drawPlacedTopping(ctx, top, 0, 0, r, 1);
       }
       ctx.restore();
-    }
-    // Slice separator lines on top of plate
-    if (this.phase === 'eating' || this.phase === 'celebrating') {
-      ctx.strokeStyle = 'rgba(122,72,30,0.6)';
-      ctx.lineWidth = 2;
-      for (let i = 0; i < n; i++) {
-        const a = (i / n) * Math.PI * 2;
-        ctx.beginPath();
-        ctx.moveTo(this.pizzaX, this.pizzaY);
-        ctx.lineTo(this.pizzaX + Math.cos(a) * r * 0.96, this.pizzaY + Math.sin(a) * r * 0.96);
-        ctx.stroke();
-      }
+      // Boundary lines drawn inside the slice's alpha+translate so they fade
+      // and lift with the slice itself (fixes lines persisting after eating).
+      ctx.strokeStyle = 'rgba(74,36,16,0.55)';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(a0) * r * 0.96, Math.sin(a0) * r * 0.96);
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(a1) * r * 0.96, Math.sin(a1) * r * 0.96);
+      ctx.stroke();
+      ctx.restore();
     }
     // Crumb particles for eaten slices
     ctx.globalAlpha = 1;
