@@ -626,68 +626,89 @@ export class PizzaScene implements Scene {
   }
 
   private drawPlate(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
-    ctx.fillStyle = '#f3edd8';
-    ctx.beginPath();
-    ctx.arc(cx, cy + r * 0.04, r * 1.14, 0, Math.PI * 2);
+    // Flat plate with thick dark outline; slight wobble.
+    ctx.save();
+    ctx.translate(cx, cy + r * 0.04);
+    ctx.fillStyle = '#fff6e0';
+    blob(ctx, 0, 0, r * 1.14, 0.025, 3);
     ctx.fill();
-    ctx.strokeStyle = '#d4cba2';
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#7a5a30';
+    ctx.lineWidth = 3.5;
+    ctx.lineJoin = 'round';
     ctx.stroke();
+    // Inner rim line so the plate reads as a rim.
+    ctx.strokeStyle = '#caa770';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 1.02, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   private drawPizzaBase(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, baked: boolean, browning = 0) {
-    // Plate behind the whole pizza when not in baking phase
     if (this.phase !== 'baking') this.drawPlate(ctx, cx, cy, r);
-    // Crust — outer ring, more golden then darker as baking progresses
-    const crustOuter = baked ? this.lerpColor('#c87a30', '#7a4010', browning) : '#c87a30';
-    const crustInner = baked ? this.lerpColor('#9a5818', '#5a3008', browning) : '#9a5818';
-    const crustGrad = ctx.createRadialGradient(cx - r * 0.2, cy - r * 0.2, r * 0.55, cx, cy, r);
-    crustGrad.addColorStop(0, crustOuter);
-    crustGrad.addColorStop(1, crustInner);
-    ctx.fillStyle = crustGrad;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+
+    const stroke = '#4a2410';
+    const crust = baked ? this.lerpColor('#e89a3a', '#7a4010', browning) : '#e89a3a';
+    const cheese = baked ? this.lerpColor('#fce088', '#dba038', browning) : '#fce088';
+    const sauce = baked ? this.lerpColor('#e64d2a', '#a02410', browning) : '#e64d2a';
+
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    // Crust — flat colored disc with slight wobbly edge.
+    ctx.fillStyle = crust;
+    blob(ctx, 0, 0, r, 0.015, 4);
     ctx.fill();
-    // Crust bumps along the rim
-    ctx.strokeStyle = baked ? this.lerpColor('#9a5818', '#3a1a08', browning) : '#9a5818';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * 0.92, 0, Math.PI * 2);
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 3.5;
+    ctx.lineJoin = 'round';
     ctx.stroke();
-    // Sauce + cheese (inner disk)
-    const cheese = baked ? this.lerpColor('#fdd96a', '#e6a832', browning) : '#fdd96a';
+
+    // Sauce — solid red, slightly inset, slightly wobbly.
+    ctx.fillStyle = sauce;
+    blob(ctx, 0, 0, r * 0.84, 0.020, 6);
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // Cheese — flat yellow, even more inset.
     ctx.fillStyle = cheese;
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * 0.86, 0, Math.PI * 2);
+    blob(ctx, 0, 0, r * 0.78, 0.030, 8);
     ctx.fill();
-    // Sauce hint underneath
-    ctx.fillStyle = baked ? `rgba(170, 50, 30, ${0.55 + browning * 0.2})` : 'rgba(228, 86, 56, 0.55)';
-    ctx.beginPath();
-    ctx.arc(cx, cy, r * 0.84, 0, Math.PI * 2);
-    ctx.fill();
-    // Melt blobs: lighter when raw, more golden/charred when baked
-    const blobLight = baked ? this.lerpColor('rgba(255,235,140,0.85)', 'rgba(220,170,60,0.95)', browning) : 'rgba(255,235,140,0.85)';
-    ctx.fillStyle = blobLight;
-    for (let i = 0; i < 18; i++) {
-      const a = (i / 18) * Math.PI * 2 + i * 0.37;
-      const dist = (0.25 + (i % 4) * 0.16) * r;
-      const bx = cx + Math.cos(a) * dist;
-      const by = cy + Math.sin(a) * dist;
-      ctx.beginPath();
-      ctx.ellipse(bx, by, r * 0.09, r * 0.06, i, 0, Math.PI * 2);
+
+    // A few flat cream "melt patches" rather than gradient shading.
+    ctx.fillStyle = baked ? this.lerpColor('#fff0b0', '#e0a850', browning) : '#fff0b0';
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.6;
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 + i * 0.7;
+      const dist = (0.28 + (i % 2) * 0.22) * r;
+      const bx = Math.cos(a) * dist;
+      const by = Math.sin(a) * dist;
+      ctx.save();
+      ctx.translate(bx, by);
+      ctx.rotate(i * 0.7);
+      blob(ctx, 0, 0, r * 0.10, 0.18, i + 2);
       ctx.fill();
+      ctx.stroke();
+      ctx.restore();
     }
-    // Bubbly char spots when baked
-    if (baked && browning > 0.6) {
-      ctx.fillStyle = `rgba(60,30,10,${(browning - 0.5) * 0.55})`;
-      for (let i = 0; i < 10; i++) {
-        const a = (i / 10) * Math.PI * 2 + i * 1.7;
-        const dist = (0.2 + (i % 5) * 0.13) * r;
+
+    // Char spots once well baked.
+    if (baked && browning > 0.55) {
+      ctx.fillStyle = `rgba(60,30,10,${(browning - 0.5) * 0.7})`;
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2 + i * 1.7;
+        const dist = (0.22 + (i % 4) * 0.14) * r;
         ctx.beginPath();
-        ctx.arc(cx + Math.cos(a) * dist, cy + Math.sin(a) * dist, 2.2, 0, Math.PI * 2);
+        ctx.arc(Math.cos(a) * dist, Math.sin(a) * dist, 2.4, 0, Math.PI * 2);
         ctx.fill();
       }
     }
+
+    ctx.restore();
   }
 
   private drawPlacedTopping(ctx: CanvasRenderingContext2D, t: PlacedTopping, cx: number, cy: number, r: number, browning = 0) {
@@ -714,219 +735,209 @@ export class PizzaScene implements Scene {
     ctx.restore();
   }
 
+  // Sago-Mini-style art rules:
+  //  - flat fills only (no radial gradients)
+  //  - thick consistent dark-brown outlines
+  //  - slightly organic (asymmetric, wobbly) edges
+  //  - ONE solid white highlight shape as the gloss accent
+  //  - small darker accents (specks, seeds) instead of shading
   private artPepperoni(ctx: CanvasRenderingContext2D, browning: number) {
-    // Base disc with curl rim
-    const g = ctx.createRadialGradient(-3, -3, 1, 0, 0, 13);
-    g.addColorStop(0, this.lerpColor('#f06848', '#a8351a', browning));
-    g.addColorStop(0.7, this.lerpColor('#cc3a22', '#7a1808', browning));
-    g.addColorStop(1, this.lerpColor('#7a1810', '#3a0a08', browning));
-    ctx.fillStyle = g;
+    const fill = this.lerpColor('#ec4a3a', '#a02818', browning);
+    const stroke = this.lerpColor('#4a1a08', '#2a0a04', browning);
+    ctx.fillStyle = fill;
     ctx.beginPath();
-    ctx.arc(0, 0, 12, 0, Math.PI * 2);
+    // Slightly wobbly disc rather than perfect circle
+    blob(ctx, 0, 0, 11.5, 0.10, 7);
     ctx.fill();
-    ctx.strokeStyle = this.lerpColor('#5a1008', '#2a0a08', browning);
-    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2.6;
+    ctx.lineJoin = 'round';
     ctx.stroke();
-    // Slight curl (darker arc on one side suggests the slice has curled)
-    ctx.fillStyle = `rgba(60, 10, 5, ${0.35 + browning * 0.3})`;
-    ctx.beginPath();
-    ctx.arc(0, 0, 12, Math.PI * 0.85, Math.PI * 1.55);
-    ctx.arc(0, 0, 9.5, Math.PI * 1.55, Math.PI * 0.85, true);
-    ctx.closePath();
-    ctx.fill();
-    // Fat flecks
-    ctx.fillStyle = '#f3d2a0';
-    for (const [px, py, rd] of [[-3, -2, 1.6], [4, 1, 1.4], [-1, 4, 1.2], [3, -4, 1.0]] as const) {
+    // Specks (small darker ovals)
+    ctx.fillStyle = this.lerpColor('#7a1808', '#3a0a04', browning);
+    for (const [px, py, rx, ry, rot] of [
+      [-3, -2, 1.8, 1.3, 0.3],
+      [3.5, 1.5, 1.6, 1.1, -0.4],
+      [-1, 4, 1.4, 1.0, 0.6],
+      [3, -4, 1.2, 0.9, 0.2],
+    ] as const) {
       ctx.beginPath();
-      ctx.arc(px, py, rd, 0, Math.PI * 2);
+      ctx.ellipse(px, py, rx, ry, rot, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Top highlight
-    ctx.fillStyle = 'rgba(255,200,170,0.35)';
+    // Single solid-white highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
     ctx.beginPath();
-    ctx.ellipse(-4, -5, 4, 1.4, -0.5, 0, Math.PI * 2);
+    ctx.ellipse(-4.5, -5, 3.4, 1.2, -0.5, 0, Math.PI * 2);
     ctx.fill();
   }
 
   private artMushroom(ctx: CanvasRenderingContext2D, browning: number) {
-    // Side view: dome cap + cream stem
-    // Cap
-    const capGrad = ctx.createLinearGradient(0, -10, 0, 0);
-    capGrad.addColorStop(0, this.lerpColor('#b88862', '#7a4f10', browning));
-    capGrad.addColorStop(1, this.lerpColor('#7a5028', '#3a1808', browning));
-    ctx.fillStyle = capGrad;
+    const cap = this.lerpColor('#d6a777', '#8a5430', browning);
+    const stem = this.lerpColor('#fff0d4', '#d4ad6c', browning);
+    const stroke = this.lerpColor('#3a2010', '#1a0808', browning);
+    // Stem first so cap overlaps
+    ctx.fillStyle = stem;
     ctx.beginPath();
-    ctx.arc(0, -1, 11, Math.PI, 0);
+    ctx.moveTo(-4.5, 0);
+    ctx.lineTo(-3.5, 5.5);
+    ctx.quadraticCurveTo(0, 6.5, 3.5, 5.5);
+    ctx.lineTo(4.5, 0);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = this.lerpColor('#3a2010', '#1a0808', browning);
-    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2.4;
+    ctx.lineJoin = 'round';
     ctx.stroke();
-    // Cap dent shading
-    ctx.strokeStyle = 'rgba(40,20,8,0.4)';
-    ctx.lineWidth = 1;
-    for (let i = -1; i <= 1; i++) {
-      ctx.beginPath();
-      ctx.moveTo(i * 4, -10);
-      ctx.lineTo(i * 4, -2);
-      ctx.stroke();
-    }
-    // Stem
-    ctx.fillStyle = this.lerpColor('#f3e2c0', '#c8a868', browning);
+    // Cap — dome with slight wobble
+    ctx.fillStyle = cap;
     ctx.beginPath();
-    ctx.moveTo(-4.5, -1);
-    ctx.lineTo(-3.5, 5);
-    ctx.lineTo(3.5, 5);
-    ctx.lineTo(4.5, -1);
+    ctx.moveTo(-11, 0);
+    ctx.quadraticCurveTo(-11.5, -10, 0, -11);
+    ctx.quadraticCurveTo(11.5, -10, 11, 0);
+    ctx.lineTo(7, 0);
+    ctx.quadraticCurveTo(0, 1.5, -7, 0);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = this.lerpColor('#9a8868', '#5a4828', browning);
-    ctx.lineWidth = 1;
     ctx.stroke();
-    // Gill hint under cap
-    ctx.strokeStyle = 'rgba(120,90,50,0.55)';
-    ctx.lineWidth = 0.8;
+    // Two cream spots on the cap (Sago likes spots)
+    ctx.fillStyle = stem;
     ctx.beginPath();
-    ctx.moveTo(-10, -1);
-    ctx.lineTo(10, -1);
+    ctx.ellipse(-3, -6, 2.2, 1.6, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.4;
     ctx.stroke();
-    // Highlight on cap
-    ctx.fillStyle = 'rgba(255,220,180,0.45)';
     ctx.beginPath();
-    ctx.ellipse(-3, -7, 4, 2, -0.4, 0, Math.PI * 2);
+    ctx.ellipse(4, -4, 1.6, 1.2, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // Highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.beginPath();
+    ctx.ellipse(-5, -8, 2.4, 0.9, -0.4, 0, Math.PI * 2);
     ctx.fill();
   }
 
   private artOlive(ctx: CanvasRenderingContext2D) {
-    // Glossy black ring
-    const g = ctx.createRadialGradient(-3, -3, 1, 0, 0, 9);
-    g.addColorStop(0, '#3a3a3a');
-    g.addColorStop(0.6, '#1a1a1a');
-    g.addColorStop(1, '#080808');
-    ctx.fillStyle = g;
+    ctx.fillStyle = '#2a2418';
     ctx.beginPath();
-    ctx.arc(0, 0, 9, 0, Math.PI * 2);
+    blob(ctx, 0, 0, 9, 0.06, 8);
     ctx.fill();
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = '#1a0a04';
+    ctx.lineWidth = 2.4;
+    ctx.lineJoin = 'round';
     ctx.stroke();
-    // Inner hole + shadow
-    const hg = ctx.createRadialGradient(-1, -1, 0, 0, 0, 4);
-    hg.addColorStop(0, '#7a4818');
-    hg.addColorStop(1, '#1a0a04');
-    ctx.fillStyle = hg;
+    // Inner hole (warm brown so it reads as the pit)
+    ctx.fillStyle = '#7a4818';
     ctx.beginPath();
     ctx.arc(0, 0, 3.4, 0, Math.PI * 2);
     ctx.fill();
-    // Specular highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.strokeStyle = '#3a1808';
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+    // Single highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
     ctx.beginPath();
-    ctx.ellipse(-3, -4, 2, 1, -0.5, 0, Math.PI * 2);
+    ctx.ellipse(-3, -4, 2.2, 0.9, -0.5, 0, Math.PI * 2);
     ctx.fill();
   }
 
   private artPepper(ctx: CanvasRenderingContext2D, browning: number) {
-    // Bumpy green pepper ring (slight bell pepper irregularity)
-    const baseColor = this.lerpColor('#3da53a', '#1f5a1d', browning);
-    const darkColor = this.lerpColor('#1f5f1d', '#0a2808', browning);
-    ctx.fillStyle = baseColor;
+    const fill = this.lerpColor('#5fb84a', '#347a25', browning);
+    const stroke = this.lerpColor('#1f5f1d', '#0a3008', browning);
+    // Outer wobbly ring
+    ctx.fillStyle = fill;
     ctx.beginPath();
-    // Outer wobble
-    const outerR = 11;
-    for (let i = 0; i <= 18; i++) {
-      const a = (i / 18) * Math.PI * 2;
-      const wob = (i % 3 === 0 ? 1.0 : 0.85);
-      const px = Math.cos(a) * outerR * wob;
-      const py = Math.sin(a) * outerR * wob;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
+    blob(ctx, 0, 0, 11.5, 0.10, 9);
     ctx.fill();
-    // Inner ring (cavity)
-    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2.6;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    // Cavity — flat solid, outlined
+    ctx.fillStyle = this.lerpColor('#a8d68a', '#5a8a4a', browning);
     ctx.beginPath();
-    ctx.arc(0, 0, 4.8, 0, Math.PI * 2);
+    ctx.arc(0, 0, 4.6, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = darkColor;
-    ctx.beginPath();
-    ctx.arc(0, 0, 4.2, 0, Math.PI * 2);
-    ctx.fill();
-    // Outline
-    ctx.strokeStyle = darkColor;
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.arc(0, 0, 11, 0, Math.PI * 2);
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.8;
     ctx.stroke();
     // Highlight
-    ctx.fillStyle = 'rgba(180, 240, 180, 0.5)';
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
     ctx.beginPath();
-    ctx.ellipse(-5, -5, 3, 1.4, -0.4, 0, Math.PI * 2);
+    ctx.ellipse(-5, -5, 2.6, 1.1, -0.4, 0, Math.PI * 2);
     ctx.fill();
   }
 
   private artCheese(ctx: CanvasRenderingContext2D, browning: number) {
-    // Soft mozzarella blob
-    const g = ctx.createRadialGradient(-2, -3, 1, 0, 0, 10);
-    g.addColorStop(0, '#fffaee');
-    g.addColorStop(1, this.lerpColor('#f0e0c0', '#c89a4a', browning));
-    ctx.fillStyle = g;
+    const fill = this.lerpColor('#fff5d8', '#e8c060', browning);
+    const stroke = this.lerpColor('#6a4a18', '#3a2008', browning);
+    // Soft blob (organic)
+    ctx.fillStyle = fill;
     ctx.beginPath();
-    // Irregular blob shape
-    ctx.moveTo(-9, -3);
-    ctx.bezierCurveTo(-11, -8, -2, -10, 4, -8);
-    ctx.bezierCurveTo(11, -6, 11, 5, 5, 8);
-    ctx.bezierCurveTo(-3, 11, -10, 6, -9, -3);
-    ctx.closePath();
+    blob(ctx, 0, 0, 9.5, 0.12, 8);
     ctx.fill();
-    ctx.strokeStyle = this.lerpColor('rgba(180,150,100,0.6)', 'rgba(120,80,40,0.7)', browning);
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2.5;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    // Small crease accent (mozzarella twist)
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(-3, 1);
+    ctx.quadraticCurveTo(0, 3, 4, 0.5);
     ctx.stroke();
     // Highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillStyle = 'rgba(255,255,255,0.65)';
     ctx.beginPath();
-    ctx.ellipse(-3, -5, 4, 2, -0.4, 0, Math.PI * 2);
+    ctx.ellipse(-3, -5, 3.2, 1.2, -0.4, 0, Math.PI * 2);
     ctx.fill();
   }
 
   private artTomato(ctx: CanvasRenderingContext2D, browning: number) {
-    // Red disc with seed cluster center
-    const baseColor = this.lerpColor('#e8553a', '#a8331a', browning);
-    const rimColor = this.lerpColor('#a8281a', '#5a1008', browning);
-    const g = ctx.createRadialGradient(-2, -2, 1, 0, 0, 11);
-    g.addColorStop(0, this.lerpColor('#ff8060', '#c84628', browning));
-    g.addColorStop(1, baseColor);
-    ctx.fillStyle = g;
+    const fill = this.lerpColor('#e84030', '#a82818', browning);
+    const stroke = this.lerpColor('#5a1408', '#2a0a04', browning);
+    ctx.fillStyle = fill;
     ctx.beginPath();
-    ctx.arc(0, 0, 10.5, 0, Math.PI * 2);
+    blob(ctx, 0, 0, 10.5, 0.06, 9);
     ctx.fill();
-    ctx.strokeStyle = rimColor;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2.6;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    // Seed cluster — flat cream center with a few oval seeds
+    ctx.fillStyle = this.lerpColor('#fff5c8', '#d8a868', browning);
+    ctx.beginPath();
+    ctx.ellipse(0, 0.5, 5.2, 4.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = stroke;
     ctx.lineWidth = 1.4;
     ctx.stroke();
-    // Inner pulp boundary
-    ctx.strokeStyle = `rgba(180, 60, 40, 0.5)`;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(0, 0, 6.5, 0, Math.PI * 2);
-    ctx.stroke();
     // Seeds
-    ctx.fillStyle = '#fff7d0';
-    for (const [px, py] of [[-2, -1], [2, -2], [-1, 2], [3, 2]] as const) {
+    ctx.fillStyle = stroke;
+    for (const [px, py, rx, ry, rot] of [
+      [-2, -1, 0.9, 0.5, 0.2],
+      [2, -1.5, 0.9, 0.5, -0.3],
+      [-1, 1.5, 0.9, 0.5, 0.5],
+      [2.5, 1.5, 0.9, 0.5, -0.1],
+    ] as const) {
       ctx.beginPath();
-      ctx.ellipse(px, py, 1.4, 0.9, 0.2, 0, Math.PI * 2);
+      ctx.ellipse(px, py, rx, ry, rot, 0, Math.PI * 2);
       ctx.fill();
     }
     // Highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
     ctx.beginPath();
-    ctx.ellipse(-4, -4, 3, 1.2, -0.5, 0, Math.PI * 2);
+    ctx.ellipse(-5, -5, 2.6, 1.0, -0.5, 0, Math.PI * 2);
     ctx.fill();
   }
 
   // ============ Tray + Bake button + Oven ============
 
   private drawTray(ctx: CanvasRenderingContext2D) {
-    // Tray panel
+    const stroke = '#4a2410';
     const minR = this.tray.length > 0 ? this.tray[0].r : 30;
     let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
     for (const s of this.tray) {
@@ -935,30 +946,31 @@ export class PizzaScene implements Scene {
       y0 = Math.min(y0, s.y - s.r);
       y1 = Math.max(y1, s.y + s.r);
     }
-    const padding = minR * 0.5;
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    roundRect(ctx, x0 - padding, y0 - padding, (x1 - x0) + padding * 2, (y1 - y0) + padding * 2, 14);
+    const padding = minR * 0.55;
+    ctx.fillStyle = '#fff6e0';
+    roundRect(ctx, x0 - padding, y0 - padding, (x1 - x0) + padding * 2, (y1 - y0) + padding * 2, 18);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(170,85,16,0.5)';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 3.5;
+    ctx.lineJoin = 'round';
     ctx.stroke();
 
     for (const s of this.tray) {
       const isSelected = s.type === this.selectedType;
-      // Slot
-      ctx.fillStyle = isSelected ? '#fff8d8' : '#f3edd8';
+      // Slot dish — flat fill, thick outline.
+      ctx.fillStyle = isSelected ? '#ffeab0' : '#f3e8c8';
       ctx.beginPath();
       ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = isSelected ? '#f0a020' : '#c8b888';
-      ctx.lineWidth = isSelected ? 5 : 2.5;
+      ctx.strokeStyle = isSelected ? '#d68028' : stroke;
+      ctx.lineWidth = isSelected ? 4.5 : 3;
       ctx.stroke();
       // Topping inside slot
       this.drawTopping(ctx, s.x, s.y, s.type, 1.7, 0, 0);
-      // Selected pulse
+      // Selected pulse ring
       if (isSelected) {
         const t = (performance.now() / 800) % 1;
-        ctx.strokeStyle = `rgba(240,160,32,${(1 - t) * 0.7})`;
+        ctx.strokeStyle = `rgba(214,128,40,${(1 - t) * 0.75})`;
         ctx.lineWidth = 4;
         ctx.beginPath();
         ctx.arc(s.x, s.y, s.r + t * 14, 0, Math.PI * 2);
@@ -969,23 +981,26 @@ export class PizzaScene implements Scene {
 
   private drawBakeBtn(ctx: CanvasRenderingContext2D) {
     const b = this.bakeBtn;
-    const pulse = 1 + Math.sin(b.pulse / 1.6 * Math.PI * 2) * 0.04;
+    const pulse = 1 + Math.sin(b.pulse / 1.6 * Math.PI * 2) * 0.05;
     ctx.save();
     ctx.translate(b.x, b.y);
     ctx.scale(pulse, pulse);
-    const grad = ctx.createLinearGradient(0, -b.h / 2, 0, b.h / 2);
-    grad.addColorStop(0, '#ffb046');
-    grad.addColorStop(1, '#cc6510');
-    ctx.fillStyle = grad;
-    roundRect(ctx, -b.w / 2, -b.h / 2, b.w, b.h, b.h * 0.35);
+    // Flat orange pill with thick outline
+    ctx.fillStyle = '#f49432';
+    roundRect(ctx, -b.w / 2, -b.h / 2, b.w, b.h, b.h * 0.5);
     ctx.fill();
-    ctx.strokeStyle = '#7a3008';
+    ctx.strokeStyle = '#4a2410';
     ctx.lineWidth = 4;
+    ctx.lineJoin = 'round';
     ctx.stroke();
+    // Subtle highlight stripe (single solid white shape — Sago-style)
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    roundRect(ctx, -b.w / 2 + b.h * 0.20, -b.h / 2 + b.h * 0.10, b.w - b.h * 0.40, b.h * 0.18, b.h * 0.10);
+    ctx.fill();
     // Label
     ctx.fillStyle = '#fff';
-    ctx.strokeStyle = '#7a3008';
-    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#4a2410';
+    ctx.lineWidth = 5;
     ctx.lineJoin = 'round';
     ctx.font = `900 ${Math.round(b.h * 0.55)}px system-ui, sans-serif`;
     ctx.textAlign = 'center';
@@ -1002,51 +1017,90 @@ export class PizzaScene implements Scene {
     const cy = this.pizzaY;
     ctx.save();
     ctx.translate(cx, cy);
-    // Oven body (dark brown box)
-    const grad = ctx.createLinearGradient(-ovenW / 2, -ovenH / 2, ovenW / 2, ovenH / 2);
-    grad.addColorStop(0, '#5a3818');
-    grad.addColorStop(1, '#2a1408');
-    ctx.fillStyle = grad;
-    roundRect(ctx, -ovenW / 2, -ovenH / 2, ovenW, ovenH, 16);
+
+    const stroke = '#3a2010';
+
+    // Body — flat brick red with thick dark outline.
+    ctx.fillStyle = '#c8623a';
+    roundRect(ctx, -ovenW / 2, -ovenH / 2, ovenW, ovenH, 20);
     ctx.fill();
-    ctx.strokeStyle = '#1a0a04';
+    ctx.strokeStyle = stroke;
     ctx.lineWidth = 4;
+    ctx.lineJoin = 'round';
     ctx.stroke();
-    // Top vent
-    ctx.fillStyle = '#1a0a04';
-    ctx.fillRect(-ovenW * 0.30, -ovenH / 2 - 8, ovenW * 0.6, 8);
-    // Door window — circular
-    const winR = ovenW * 0.42;
-    // Window glow when baking
+
+    // Chimney
+    ctx.fillStyle = '#7a3a18';
+    roundRect(ctx, ovenW * 0.18, -ovenH / 2 - ovenH * 0.20, ovenW * 0.18, ovenH * 0.22, 5);
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.stroke();
+
+    // Door window — flat circle.
+    const winR = ovenW * 0.40;
     const glowing = this.bakeT > 0.40 && this.bakeT < 0.85;
-    const windowGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, winR);
-    if (glowing) {
-      windowGrad.addColorStop(0, '#ffe680');
-      windowGrad.addColorStop(0.6, '#f0863a');
-      windowGrad.addColorStop(1, '#7a2a08');
-    } else {
-      windowGrad.addColorStop(0, '#3a2010');
-      windowGrad.addColorStop(1, '#1a0a04');
-    }
-    ctx.fillStyle = windowGrad;
+    ctx.fillStyle = glowing ? '#f8a838' : '#3a2010';
     ctx.beginPath();
     ctx.arc(0, 0, winR, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = '#1a0a04';
-    ctx.lineWidth = 5;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 4;
     ctx.stroke();
-    // Window inner shadow
-    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    // Inner ring detail (like a glass bevel)
+    ctx.strokeStyle = glowing ? '#f0c060' : '#5a3010';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(0, 0, winR - 4, 0, Math.PI * 2);
+    ctx.arc(0, 0, winR - 5, 0, Math.PI * 2);
     ctx.stroke();
-    // Handle
-    ctx.fillStyle = '#a86a3a';
-    roundRect(ctx, -ovenW * 0.34, ovenH * 0.28, ovenW * 0.68, 10, 5);
+
+    // Flat "flame" shapes inside the window when baking.
+    if (glowing) {
+      ctx.fillStyle = '#ffd64a';
+      const flames = [[-winR * 0.45, winR * 0.20, winR * 0.18], [0, winR * 0.10, winR * 0.22], [winR * 0.40, winR * 0.25, winR * 0.18]];
+      for (const [fx, fy, fr] of flames as Array<[number, number, number]>) {
+        ctx.beginPath();
+        ctx.moveTo(fx - fr * 0.5, fy);
+        ctx.quadraticCurveTo(fx - fr * 0.6, fy - fr * 1.2, fx, fy - fr * 1.4);
+        ctx.quadraticCurveTo(fx + fr * 0.6, fy - fr * 1.2, fx + fr * 0.5, fy);
+        ctx.quadraticCurveTo(fx, fy + fr * 0.3, fx - fr * 0.5, fy);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#7a4010';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+      // Window highlight to keep it readable.
+      ctx.fillStyle = 'rgba(255,255,255,0.30)';
+      ctx.beginPath();
+      ctx.ellipse(-winR * 0.30, -winR * 0.45, winR * 0.30, winR * 0.10, -0.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Two flat dial knobs on the side.
+    for (let i = 0; i < 2; i++) {
+      const kx = -ovenW * 0.36 + i * ovenW * 0.18;
+      const ky = ovenH * 0.36;
+      ctx.fillStyle = '#fff5d8';
+      ctx.beginPath();
+      ctx.arc(kx, ky, ovenW * 0.06, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(kx, ky);
+      ctx.lineTo(kx + Math.cos(i * 0.8 - 0.6) * ovenW * 0.05, ky + Math.sin(i * 0.8 - 0.6) * ovenW * 0.05);
+      ctx.stroke();
+    }
+
+    // Door handle bar across the bottom of the door window.
+    ctx.fillStyle = '#fff5d8';
+    roundRect(ctx, -ovenW * 0.30, ovenH * 0.20, ovenW * 0.60, ovenH * 0.06, ovenH * 0.03);
     ctx.fill();
-    ctx.strokeStyle = '#5a2a08';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2.5;
     ctx.stroke();
     ctx.restore();
   }
@@ -1141,5 +1195,22 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.quadraticCurveTo(x, y + h, x, y + h - r);
   ctx.lineTo(x, y + r);
   ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// Slightly-wobbly circular blob — used everywhere a perfect circle would
+// feel sterile. `wobble` is the relative amplitude of radius noise (0..0.2).
+function blob(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, wobble: number, seed: number) {
+  const n = 20;
+  ctx.beginPath();
+  for (let i = 0; i <= n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    const wobbleVal = Math.sin(a * 3 + seed) * wobble + Math.sin(a * 5 + seed * 1.7) * wobble * 0.4;
+    const rr = r * (1 + wobbleVal);
+    const px = cx + Math.cos(a) * rr;
+    const py = cy + Math.sin(a) * rr;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
   ctx.closePath();
 }
